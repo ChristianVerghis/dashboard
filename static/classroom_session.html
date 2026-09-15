@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Session detail · classroom</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/classroom/live" class="back-link">←</a>
+      <span class="brand-text">session</span>
+      <span class="muted">·</span>
+      <code id="session-id-label" class="muted small">…</code>
+    </div>
+    <div class="meta">
+      <a href="/classroom" class="topnav-link small">classroom home</a>
+      <a href="/classroom/live" class="topnav-link small">live</a>
+    </div>
+  </header>
+
+  <main class="cls-main">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Session summary</h2>
+        <span class="muted small" id="summary-meta">—</span>
+      </div>
+      <div id="summary-grid" class="cls-cards"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Techniques · resolutions in this session</h2>
+        <span class="muted small">sorted by total P&amp;L contribution</span>
+      </div>
+      <div id="tech-detail" class="tech-table"></div>
+    </section>
+  </main>
+
+  <script src="/static/classroom_session.js"></script>
+</body>
+</html>

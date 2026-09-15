@@ -1,0 +1,19 @@
+# project.yml — dashboard manifest (yes, the dashboard reads its own)
+name: dashboard
+kind: service
+status: active
+description: Live cockpit for everything under ~/dev — auto-discovers projects, streams activity.
+port: 8765
+start: ./run.sh
+links:
+  - { label: "Open dashboard →", href: "http://localhost:8765", primary: true }
+  - { label: "Steward orders", path: "steward/STEWARD.md" }
+actions:
+  smoke: .venv/bin/python -c "import app.main; print('imports ok')"
+  steward-now: ./steward/run_steward.sh
+freshness:
+  - { label: "nightly digest", glob: "data/nightly/*.md", warn_days: 2, fail_days: 4 }
+showcase:
+  kind: markdown-latest
+  glob: data/nightly/*.md
+tags: [meta, cockpit]

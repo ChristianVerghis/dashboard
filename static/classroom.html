@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>classroom · forecasters</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/classroom.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="back-link">←</a>
+      <span class="brand-text">classroom</span>
+      <span class="muted">·</span>
+      <span class="muted small" id="overview-hdr">loading…</span>
+    </div>
+    <div class="meta">
+      <a href="/classroom/live" class="topnav-link small">live session</a>
+      <a href="/predictions" class="topnav-link small">predictions</a>
+      <a href="/project/classroom" class="topnav-link small">project</a>
+      <span class="muted small" id="cls-last">·</span>
+    </div>
+  </header>
+
+  <main class="cls-main">
+    <section class="cohort-picker">
+      <a href="/classroom" class="cohort-card cohort-current">
+        <div class="cohort-card-head">
+          <h2>Long-term cohort</h2>
+          <span class="cohort-tag">5d · 20d</span>
+        </div>
+        <p class="muted small">100 students · 24 techniques · daily nightly run · scores resolve over days/weeks. You're here.</p>
+      </a>
+      <a href="/classroom/live" class="cohort-card">
+        <div class="cohort-card-head">
+          <h2>Live session ↗</h2>
+          <span class="cohort-tag">5min · 60min</span>
+        </div>
+        <p class="muted small">500 students · 16 techniques · 5 universes (EV/SPX/DEF/SEMI/FIN) · runs live in your browser · paper P&amp;L, mock or Alpaca.</p>
+      </a>
+    </section>
+
+    <section id="overview-cards" class="cls-cards"></section>
+
+    <section class="panel" id="learning-lab" hidden>
+      <div class="panel-head">
+        <h2>Learning Lab</h2>
+        <span class="muted small" id="learning-lab-stamp"></span>
+      </div>
+      <div id="learning-lab-overview" class="cls-cards"></div>
+      <div class="cls-two-col" style="margin-top:14px">
+        <div>
+          <h3 class="muted-small">Improving (trajectory ↘)</h3>
+          <div id="lab-improving" class="cls-table"></div>
+        </div>
+        <div>
+          <h3 class="muted-small">Most learned vs naive 70%</h3>
+          <div id="lab-most-learned" class="cls-table"></div>
+        </div>
+      </div>
+      <div class="cls-two-col" style="margin-top:14px">
+        <div>
+          <h3 class="muted-small">Deteriorating (trajectory ↗)</h3>
+          <div id="lab-deteriorating" class="cls-table"></div>
+        </div>
+        <div>
+          <h3 class="muted-small">Retirement candidates</h3>
+          <div id="lab-retirement" class="cls-table"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="leaderboard-panel">
+      <div class="panel-head">
+        <h2>Leaderboard</h2>
+        <span class="muted small" id="leaderboard-summary"></span>
+      </div>
+      <div class="cls-tabs">
+        <button class="cls-tab active" data-tab="resolved">Ranked</button>
+        <button class="cls-tab" data-tab="unresolved">Awaiting first resolution</button>
+      </div>
+      <div id="leaderboard" class="cls-table"></div>
+    </section>
+
+    <section class="panel" id="technique-panel">
+      <div class="panel-head">
+        <h2>By technique</h2>
+        <span class="muted small">avg lifetime Brier · lower = better calibrated</span>
+      </div>
+      <div id="technique-table" class="cls-table"></div>
+    </section>
+
+    <section class="cls-two-col">
+      <section class="panel" id="hof-panel">
+        <div class="panel-head">
+          <h2>Hall of Fame</h2>
+          <span class="muted small">correct + confidence ≥ 85</span>
+        </div>
+        <div id="hof-list" class="cls-hall"></div>
+      </section>
+
+      <section class="panel" id="wos-panel">
+        <div class="panel-head">
+          <h2>Wall of Shame</h2>
+          <span class="muted small">wrong + confidence ≥ 85</span>
+        </div>
+        <div id="wos-list" class="cls-hall"></div>
+      </section>
+    </section>
+
+    <section class="panel" id="usage-panel">
+      <div class="panel-head">
+        <h2>Claude usage</h2>
+        <span class="muted small">llm_persona calls · last 14 days</span>
+      </div>
+      <div id="usage-content"></div>
+    </section>
+
+    <section class="panel" id="latest-panel">
+      <div class="panel-head">
+        <h2>Latest predictions</h2>
+        <span class="muted small" id="latest-count"></span>
+      </div>
+      <div id="latest-list" class="cls-latest"></div>
+    </section>
+  </main>
+
+  <script src="/static/classroom.js"></script>
+</body>
+</html>

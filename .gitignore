@@ -1,0 +1,19 @@
+.DS_Store
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Runtime state — nothing under these is committable.
+logs/
+data/
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3

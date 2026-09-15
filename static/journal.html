@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>journal</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="back-link">←</a>
+      <span class="brand-text">journal</span>
+      <span class="muted small" id="jrnl-summary"></span>
+    </div>
+    <div class="meta">
+      <input id="search-commits" type="search" placeholder="search commits…" autocomplete="off" />
+      <select id="window-select">
+        <option value="1">last 24h</option>
+        <option value="3">last 3 days</option>
+        <option value="7">last week</option>
+        <option value="30">last month</option>
+      </select>
+    </div>
+  </header>
+
+  <main>
+    <section id="search-results" class="panel" hidden>
+      <div class="panel-head">
+        <h2 id="search-title">Search results</h2>
+        <button id="clear-search" class="action-btn">Clear</button>
+      </div>
+      <div id="search-body"></div>
+    </section>
+
+    <section id="journal" class="journal"></section>
+  </main>
+
+  <script src="/static/journal.js"></script>
+</body>
+</html>

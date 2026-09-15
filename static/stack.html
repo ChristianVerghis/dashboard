@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>stack · all projects</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .stack-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 18px; align-items: start; }
+    .stack-col { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; }
+    .stack-col header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+    .stack-col h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .stack-col .stack-summary { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 8px 0 12px; }
+    .stack-col .stack-insights { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .stack-col .stack-insight { background: var(--panel-2); border-radius: 6px; padding: 6px 10px; font-size: 11.5px; }
+    .stack-col .stack-insight .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .stack-col .stack-insight .v { font-weight: 600; margin-top: 2px; }
+    .stack-col .md { background: transparent; border: none; padding: 0; max-height: none; }
+    .stack-col .md h1 { display: none; } /* duplicate of header */
+    .stack-col .md h2 { font-size: 14px; }
+    .stack-col .md h3 { font-size: 13px; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="back-link">←</a>
+      <span class="brand-text">stack</span>
+      <span class="muted">·</span>
+      <span class="muted small" id="stack-count"></span>
+    </div>
+    <div class="meta">
+      <span class="muted small">side-by-side capability comparison</span>
+    </div>
+  </header>
+
+  <main>
+    <section id="stack-grid" class="stack-grid"></section>
+  </main>
+
+  <script src="/static/marked.min.js"></script>
+  <script src="/static/stack.js"></script>
+</body>
+</html>

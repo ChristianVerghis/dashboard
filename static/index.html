@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projects · live</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot pulse"></span>
+      <span class="brand-text">projects</span>
+    </div>
+    <div class="meta">
+      <a href="/stack" class="topnav-link">stack</a>
+      <a href="/digest" class="topnav-link">digest</a>
+      <a href="/journal" class="topnav-link">journal</a>
+      <a href="/predictions" class="topnav-link">predictions</a>
+      <a href="/classroom" class="topnav-link">classroom</a>
+      <a href="/routines" class="topnav-link">routines</a>
+      <a href="/snapshot.html" class="topnav-link" download="dashboard-snapshot.html" title="download self-contained HTML snapshot">snapshot ↓</a>
+      <span id="running-indicator" class="running-indicator" hidden></span>
+      <button id="notify-toggle" class="theme-toggle" title="macOS notifications">🔕</button>
+      <button id="theme-toggle" class="theme-toggle" title="toggle theme (T)">◐</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Attention strip: worst red/amber verdicts across the portfolio -->
+    <section id="attention-strip" class="attention-strip" hidden></section>
+
+    <!-- Project nav: tiles → /project/{name} -->
+    <nav id="project-nav" class="project-nav"></nav>
+
+    <!-- Services: manifest-declared ports, live up/down -->
+    <section id="services-row" class="services-row" hidden></section>
+
+    <!-- Showcase shelf: each project's latest product -->
+    <section id="showcase-shelf" class="panel showcase-shelf" hidden></section>
+
+    <section id="now-next" class="now-next" hidden>
+      <div class="now-block">
+        <div class="now-label">NEXT FIRE</div>
+        <div class="now-name" id="next-routine-name">—</div>
+        <div class="now-countdown" id="next-routine-countdown">—</div>
+        <div class="muted small" id="next-routine-purpose"></div>
+      </div>
+      <div class="now-block now-goals">
+        <div class="now-label">NEXT UP</div>
+        <ul id="next-goals" class="next-goals"></ul>
+      </div>
+    </section>
+
+    <section id="heatmap-panel" class="panel heatmap-panel" hidden>
+      <div class="panel-head">
+        <h2>Activity · last 6 months</h2>
+        <span class="muted small" id="heatmap-summary"></span>
+      </div>
+      <div class="heatmap-wrap">
+        <svg id="heatmap" viewBox="0 0 720 70" preserveAspectRatio="xMinYMin meet"></svg>
+      </div>
+      <div id="heatmap-tooltip" class="heatmap-tooltip" hidden></div>
+    </section>
+
+    <section class="two-col">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Activity</h2>
+          <span class="muted small" id="activity-count"></span>
+        </div>
+        <div id="activity-chips" class="activity-chips"></div>
+        <ul class="feed" id="feed"></ul>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Live log</h2>
+          <div class="log-tabs">
+            <button class="log-tab active" data-tab="log">Feed</button>
+            <button class="log-tab" data-tab="runs">Recent runs</button>
+          </div>
+        </div>
+        <pre class="terminal" id="terminal"></pre>
+        <div class="recent-runs" id="recent-runs" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toasts" class="toasts"></div>
+
+  <div id="shortcuts" class="palette" hidden>
+    <div class="palette-card shortcuts-card">
+      <div class="shortcuts-head">
+        <h3>Keyboard shortcuts</h3>
+        <button id="shortcuts-close">×</button>
+      </div>
+      <ul class="shortcuts-list">
+        <li><kbd>⌘K</kbd> <kbd>Ctrl-K</kbd> <span>Open command palette · jump anywhere</span></li>
+        <li><kbd>T</kbd> <span>Toggle theme (light / dark)</span></li>
+        <li><kbd>?</kbd> <span>Show this help</span></li>
+        <li><kbd>Esc</kbd> <span>Close any modal</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="palette" class="palette" hidden>
+    <div class="palette-card">
+      <input id="palette-input" type="text" placeholder="Type to search projects, pages, commits…" autocomplete="off" />
+      <ul id="palette-results" class="palette-results"></ul>
+      <div class="palette-foot muted small">↑↓ navigate · ⏎ open · esc close</div>
+    </div>
+  </div>
+
+  <script src="/static/marked.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

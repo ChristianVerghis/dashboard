@@ -1,0 +1,115 @@
+/* Classroom dashboard styling — leans on the project's existing CSS variables. */
+
+.cls-main { padding: 20px 24px; display: grid; gap: 18px; max-width: 1400px; margin: 0 auto; }
+
+.cls-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+.cls-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.cls-card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.cls-card .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+.cls-card .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px 18px;
+}
+.panel-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.panel-head h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+
+.cls-tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+.cls-tab {
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+}
+.cls-tab.active { color: var(--text); border-color: var(--accent); background: rgba(122,162,247,0.08); }
+
+.cls-table { display: grid; gap: 4px; }
+.cls-row {
+  display: grid; gap: 12px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12.5px; background: var(--panel-2);
+}
+.cls-row.leaderboard {
+  grid-template-columns: 40px 1.6fr 1fr 0.6fr 0.7fr 0.7fr 0.7fr 0.6fr 0.6fr;
+}
+.cls-row.tech {
+  grid-template-columns: 40px 1.6fr 0.7fr 0.7fr 0.7fr 0.7fr 1.6fr;
+}
+.cls-row.setup { grid-template-columns: 1.6fr 0.6fr 0.6fr 0.6fr 0.6fr 1fr; }
+.cls-row.log { grid-template-columns: 0.9fr 0.7fr 0.6fr 0.6fr 0.5fr 0.6fr 0.6fr 2fr; }
+.cls-row.usage-day { grid-template-columns: 1fr 0.6fr 0.6fr 0.6fr 0.8fr; }
+.cls-row.usage-persona { grid-template-columns: 1.5fr 0.6fr 0.6fr 0.8fr; }
+
+.cls-row.header {
+  background: transparent; border: none;
+  color: var(--muted); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 4px 10px 0;
+}
+
+.cls-row a { color: var(--accent); text-decoration: none; }
+.cls-row a:hover { text-decoration: underline; }
+
+.cls-row .right { text-align: right; }
+.cls-row .name { font-weight: 600; }
+.cls-row .technique-pill {
+  font-size: 10.5px; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.05em; background: rgba(255,255,255,0.04); padding: 2px 6px;
+  border-radius: 3px; display: inline-block;
+}
+
+.cls-row .dir-up { color: var(--accent-2); font-weight: 600; }
+.cls-row .dir-down { color: var(--bad); font-weight: 600; }
+.cls-row .dir-flat { color: var(--warn); font-weight: 600; }
+.cls-row .status-resolved-correct { color: var(--accent-2); }
+.cls-row .status-resolved-wrong { color: var(--bad); }
+.cls-row .status-open { color: var(--muted); }
+
+.cls-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 1000px) { .cls-two-col { grid-template-columns: 1fr; } }
+
+.cls-hall { display: flex; flex-direction: column; gap: 8px; max-height: 520px; overflow-y: auto; padding-right: 4px; }
+.cls-hall-entry {
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 12px; font-size: 12.5px;
+}
+.cls-hall-entry h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.cls-hall-entry .small { color: var(--muted); font-size: 11.5px; }
+
+.cls-latest { display: grid; gap: 4px; max-height: 700px; overflow-y: auto; padding-right: 4px; }
+
+.cls-profile {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 12px; font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-size: 12px; line-height: 1.55; max-height: 360px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.muted-small { color: var(--muted); font-size: 11px; }
+.confidence-bar {
+  display: inline-block; width: 60px; height: 5px; border-radius: 2px;
+  background: var(--border); overflow: hidden; vertical-align: middle;
+  margin-left: 6px;
+}
+.confidence-bar > i {
+  display: block; height: 100%; background: var(--accent);
+}
+
+.usage-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .usage-section { grid-template-columns: 1fr; } }
+.usage-section h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; color: var(--muted); }

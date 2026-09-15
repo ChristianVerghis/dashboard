@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ticker</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/project/markets" class="back-link">←</a>
+      <span class="brand-text" id="ticker-symbol">…</span>
+      <span class="muted">·</span>
+      <span class="muted small" id="ticker-summary"></span>
+    </div>
+    <div class="meta">
+      <select id="window-select">
+        <option value="14">14d</option>
+        <option value="30">30d</option>
+        <option value="90" selected>90d</option>
+        <option value="365">1y</option>
+      </select>
+      <div class="chart-type-toggle">
+        <button class="chart-type-btn active" data-type="candle">candle</button>
+        <button class="chart-type-btn" data-type="line">line</button>
+      </div>
+      <label class="bb-toggle"><input type="checkbox" id="bb-toggle" /> Bollinger</label>
+    </div>
+  </header>
+
+  <main>
+    <section id="ticker-stats" class="panel ticker-stats"></section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Price · OHLC</h2></div>
+      <div class="chart-wrap">
+        <svg id="price-chart" viewBox="0 0 720 320" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Volume</h2></div>
+      <div class="chart-wrap">
+        <svg id="vol-chart" viewBox="0 0 720 120" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>RSI(14)</h2>
+        <span class="muted small">overbought >70 · oversold &lt;30</span>
+      </div>
+      <div class="chart-wrap">
+        <svg id="rsi-chart" viewBox="0 0 720 100" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>MACD(12, 26, 9)</h2>
+        <span class="muted small">line, signal, histogram</span>
+      </div>
+      <div class="chart-wrap">
+        <svg id="macd-chart" viewBox="0 0 720 120" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </section>
+
+    <section class="panel" id="analytics-panel" hidden>
+      <div class="panel-head">
+        <h2>Risk &amp; momentum analytics</h2>
+        <span class="muted small">computed from 2y history</span>
+      </div>
+      <div id="analytics-tiles" class="ticker-tiles"></div>
+    </section>
+
+    <section class="two-col">
+      <div class="panel">
+        <div class="panel-head"><h2>Recent filings</h2></div>
+        <ul id="ticker-filings" class="filings-list"></ul>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>News mentions</h2></div>
+        <ul id="ticker-news" class="news-list"></ul>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Predictions on this ticker</h2></div>
+      <div id="ticker-predictions"></div>
+    </section>
+  </main>
+
+  <script src="/static/ticker.js"></script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Classroom · live</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/classroom" class="back-link">←</a>
+      <span class="brand-text">classroom · live</span>
+      <span class="muted">·</span>
+      <span class="muted small" id="session-id">no session</span>
+    </div>
+    <div class="meta">
+      <a href="/classroom" class="topnav-link">long-term</a>
+      <span class="muted small" id="provider-label">ws: idle</span>
+      <span class="muted small" id="bar-count">bars: 0</span>
+      <span class="muted small" id="pred-count">preds: 0</span>
+      <span class="muted small" id="reso-count">resos: 0</span>
+      <select id="provider-select" class="action-btn" title="Data source for the session">
+        <option value="mock">mock (synthetic)</option>
+        <option value="yfinance">yfinance (real replay)</option>
+        <option value="alpaca">alpaca (live)</option>
+      </select>
+      <select id="universe-select" class="action-btn" title="Stock universe — validated net positive on the cohort">
+        <option value="EV">universe: EV (TSLA RIVN LCID F NIO)</option>
+        <option value="SPX">universe: SPX (SPY QQQ AAPL MSFT NVDA)</option>
+        <option value="DEF">universe: DEF (JNJ PG KO WMT V)</option>
+        <option value="SEMI">universe: SEMI (AMD AVGO MU INTC TSM)</option>
+        <option value="FIN">universe: FIN (JPM BAC GS MA AXP)</option>
+      </select>
+      <select id="scenario-select" class="action-btn" title="Mock data scenario (ignored when provider is alpaca)">
+        <option value="random_walk">scenario: random walk</option>
+        <option value="trending_up">scenario: trending up</option>
+        <option value="volatile_revert">scenario: volatile revert</option>
+        <option value="breakout_event">scenario: breakout event</option>
+        <option value="choppy">scenario: choppy</option>
+      </select>
+      <button id="start-btn" class="action-btn primary">Start session</button>
+      <button id="stop-btn" class="action-btn" disabled>Stop</button>
+    </div>
+  </header>
+
+  <main class="live-main">
+    <section id="board" class="panel live-board">
+      <div class="panel-head">
+        <h2>Board · live prices</h2>
+        <span class="muted small" id="board-symbols">—</span>
+      </div>
+      <div id="regime-strip" class="regime-strip">
+        <div class="muted small" style="padding: 6px 4px">Awaiting bars to classify regime…</div>
+      </div>
+      <div id="board-charts" class="board-charts"></div>
+    </section>
+
+    <section id="grid-panel" class="panel">
+      <div class="panel-head">
+        <h2>Students · <span id="cohort-size">—</span> in cohort</h2>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-swatch" style="background:hsl(0,60%,40%)"></span><span class="muted small">-2%</span></span>
+          <span class="legend-item"><span class="legend-swatch" style="background:hsl(220,5%,28%)"></span><span class="muted small">0% (no trades yet)</span></span>
+          <span class="legend-item"><span class="legend-swatch" style="background:hsl(140,60%,40%)"></span><span class="muted small">+2%</span></span>
+          <span class="legend-item"><span class="legend-swatch" style="border:1px solid #fff;background:transparent"></span><span class="muted small">open position</span></span>
+        </div>
+      </div>
+      <p class="muted small" style="padding:0 4px 8px">Each square is one student. Color = cumulative paper P&amp;L this session. Click a square for technique + recent calls.</p>
+      <div id="student-grid" class="student-grid"></div>
+    </section>
+
+    <section id="technique-leaderboard" class="panel">
+      <div class="panel-head">
+        <h2>Techniques · session leaderboard</h2>
+        <span class="muted small">avg paper P&amp;L per student · live</span>
+      </div>
+      <div id="tech-table" class="tech-table">
+        <div class="muted small" style="padding:8px">Start a session to see technique rollups.</div>
+      </div>
+    </section>
+
+    <section id="top-bottom" class="panel">
+      <div class="panel-head">
+        <h2>Stars &amp; duds · top vs bottom 5</h2>
+        <span class="muted small">by paper P&amp;L · click for detail</span>
+      </div>
+      <div id="top-bottom-body" class="top-bottom-body">
+        <div class="muted small" style="padding:8px">Awaiting first resolutions…</div>
+      </div>
+    </section>
+
+    <section id="tape" class="panel live-tape">
+      <div class="panel-head">
+        <h2>Tape · last 30 events</h2>
+        <span class="muted small">predictions + resolutions in real time</span>
+      </div>
+      <ul id="tape-list" class="tape-list"></ul>
+    </section>
+
+    <section id="sessions-panel" class="panel">
+      <div class="panel-head">
+        <h2>Past sessions</h2>
+        <span class="muted small" id="sessions-count">—</span>
+      </div>
+      <div id="sessions-list" class="sessions-list muted small">loading…</div>
+    </section>
+  </main>
+
+  <div id="student-modal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="student-modal-name">student</h3>
+        <button id="student-modal-close">×</button>
+      </div>
+      <div id="student-modal-body" class="muted small">…</div>
+    </div>
+  </div>
+
+  <script src="/static/classroom_live.js"></script>
+</body>
+</html>

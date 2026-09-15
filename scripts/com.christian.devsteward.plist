@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Nightly dev steward — 02:00 local. Runs dashboard/steward/run_steward.sh.
+  Template: __DASHBOARD_DIR__ and __HOME__ must be substituted with absolute paths.
+  Install (from the dashboard checkout):
+    sed -e "s|__DASHBOARD_DIR__|$PWD|g" -e "s|__HOME__|$HOME|g" scripts/com.christian.devsteward.plist > ~/Library/LaunchAgents/com.christian.devsteward.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.christian.devsteward.plist
+  Test now:  launchctl kickstart -k gui/$(id -u)/com.christian.devsteward
+  Remove:    launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.christian.devsteward.plist
+  Wake the Mac for it: sudo pmset repeat wakeorpoweron MTWRFSU 01:58:00
+-->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.christian.devsteward</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/bash</string><string>-lc</string>
+    <string>__DASHBOARD_DIR__/steward/run_steward.sh</string>
+  </array>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer></dict>
+  <key>RunAtLoad</key><false/>
+  <key>KeepAlive</key><false/>
+  <key>StandardOutPath</key><string>__DASHBOARD_DIR__/logs/steward/launchd.out.log</string>
+  <key>StandardErrorPath</key><string>__DASHBOARD_DIR__/logs/steward/launchd.err.log</string>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:__HOME__/.local/bin</string></dict>
+</dict></plist>

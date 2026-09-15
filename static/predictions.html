@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>predictions · markets</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="back-link">←</a>
+      <span class="brand-text">predictions</span>
+      <span class="muted">·</span>
+      <a href="/project/markets" class="muted small">markets</a>
+    </div>
+    <div class="meta">
+      <span class="muted small" id="pred-count"></span>
+    </div>
+  </header>
+
+  <main>
+    <section id="reliability-panel" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Reliability diagram</h2>
+        <div class="chart-controls">
+          <span class="muted small" id="reliability-summary"></span>
+          <label class="demo-toggle"><input type="checkbox" id="reliability-demo" /> demo</label>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <svg id="reliability-chart" viewBox="0 0 480 480" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <p class="muted small" style="margin-top:6px">If you're well-calibrated, the dots sit on the diagonal. Above = under-confident; below = over-confident. Dot size = sample count per 5% bin.</p>
+    </section>
+
+    <section id="calibration-panel" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Calibration</h2>
+        <span class="muted small">resolved predictions only</span>
+      </div>
+      <div id="buckets" class="buckets"></div>
+    </section>
+
+    <section id="pred-grid" class="pred-grid"></section>
+  </main>
+
+  <script src="/static/predictions.js"></script>
+</body>
+</html>

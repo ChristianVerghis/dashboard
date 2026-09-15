@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""dev — scaffold and manage projects under ~/dev.
+
+Usage:
+  dev new <name> [--kind app|service|tool|vault|library] [--port N]
+                 [--status active|incubating|parked] [--desc "one-liner"] [--no-git]
+  dev ls                         list every project: kind, status, port, running?
+  dev up <name> [--bg]           start a project using its project.yml `start`
+                                 command (run from the project dir). --bg detaches.
+
+`dev up` is the answer to "how do I start this?": it reads each project's own
+`start:` line from project.yml, so you never have to remember whether a project
+is `pnpm dev` or `./run.sh`. Run it from anywhere — it cd's into the project for
+you. Note: ~/dev itself is NOT a project; `pnpm dev` there will never work.
+"""
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+# project.yml parsing needs PyYAML (via the dashboard's manifest module). If the
+# python running us doesn't have it, re-exec under the dashboard venv which does.
+_DASHBOARD = Path(__file__).resolve().parent.parent
+try:
+    import yaml  # noqa: F401
+except ModuleNotFoundError:
+    _venv_py = _DASHBOARD / ".venv" / "bin" / "python"
+    if _venv_py.exists() and os.environ.get("_DEV_REEXEC") != "1":
+        os.environ["_DEV_REEXEC"] = "1"
+        os.execv(str(_venv_py), [str(_venv_py), str(Path(__file__).resolve()), *sys.argv[1:]])
+    sys.exit("error: PyYAML not available and dashboard .venv not found — "
+             "run ~/dev/dashboard/run.sh once to build it.")
+
+import argparse
+import subprocess
+from datetime import date
+
+sys.path.insert(0, str(_DASHBOARD))
+from app.manifest import load_manifest, port_alive  # noqa: E402
+
+DEV_ROOT = Path(os.environ.get("DEV_ROOT", "~/dev")).expanduser()
+DASHBOARD_URL = "http://localhost:8765"
+SERVICE_LOG_DIR = _DASHBOARD / "logs" / "services"
+
+
+def die(msg: str) -> None:
+    print(f"error: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+# --------------------------------------------------------------------- new
+
+def cmd_new(args: argparse.Namespace) -> None:
+    name = args.name
+    if not name.replace("-", "").replace("_", "").isalnum():
+        die(f"project name '{name}' should be alphanumeric plus dashes/underscores")
+    root = DEV_ROOT / name
+    if root.exists():
+        die(f"{root} already exists")
+
+    root.mkdir(parents=True)
+    today = date.today().isoformat()
+    desc = args.desc or f"{name} — new project."
+
+    (root / "README.md").write_text(f"# {name}\n\n{desc}\n\n## Status\n\nv0.0.0 — scaffolded {today}.\n")
+    (root / "GOALS.md").write_text(
+        f"# {name} goals\n\n## v0\n\n- [ ] Define what done looks like for v0\n- [ ] First working slice\n"
+    )
+    (root / "build_log.md").write_text(f"# {name} build log\n\n**Update {today}**: scaffolded via `dev new`.\n")
+
+    manifest_lines = [
+        "# project.yml — dashboard manifest (auto-read by ~/dev/dashboard)",
+        f"name: {name}",
+        f"kind: {args.kind}",
+        f"status: {args.status}",
+        f"description: {desc}",
+    ]
+    if args.port:
+        manifest_lines += [
+            f"port: {args.port}",
+            "# start: ./run.sh        # uncomment — used by `dev up` and the dashboard's start button",
+            "links:",
+            f'  - {{ label: "Open {name} →", href: "http://localhost:{args.port}", primary: true }}',
+        ]
+    manifest_lines += [
+        "actions: {}              # e.g. test: pytest -q",
+        "",
+    ]
+    (root / "project.yml").write_text("\n".join(manifest_lines))
+
+    if not args.no_git:
+        for cmd in (
+            ["git", "init", "-q"],
+            ["git", "add", "-A"],
+            ["git", "commit", "-q", "-m", f"Scaffold {name} via dev new"],
+        ):
+            r = subprocess.run(cmd, cwd=root, capture_output=True, text=True)
+            if r.returncode != 0:
+                print(f"warning: {' '.join(cmd)} failed: {r.stderr.strip()}", file=sys.stderr)
+                break
+
+    print(f"created {root}")
+    print(f"dashboard: {DASHBOARD_URL}/project/{name}")
+
+
+# ---------------------------------------------------------------------- ls
+
+def _iter_projects():
+    for p in sorted(DEV_ROOT.iterdir()):
+        if not p.is_dir() or p.name.startswith("."):
+            continue
+        yield p, load_manifest(p)
+
+
+def cmd_ls(args: argparse.Namespace) -> None:
+    rows = []
+    for path, m in _iter_projects():
+        name = path.name
+        kind = (m or {}).get("kind", "—")
+        status = (m or {}).get("status", "—")
+        port = (m or {}).get("port")
+        start = (m or {}).get("start")
+        if port and port_alive(port):
+            run = f"● :{port}"
+        elif port:
+            run = f"○ :{port}"
+        else:
+            run = "—"
+        startable = "yes" if start else "no"
+        rows.append((name, kind, status, run, startable))
+
+    w = max((len(r[0]) for r in rows), default=4)
+    print(f"{'PROJECT':<{w}}  {'KIND':<8} {'STATUS':<11} {'RUNNING':<10} STARTABLE")
+    for name, kind, status, run, startable in rows:
+        print(f"{name:<{w}}  {kind:<8} {status:<11} {run:<10} {startable}")
+    print("\n● running  ○ declared port, not up   ·   start with: dev up <project>")
+
+
+# ---------------------------------------------------------------------- up
+
+def cmd_up(args: argparse.Namespace) -> None:
+    name = args.name
+    root = DEV_ROOT / name
+    if not root.is_dir():
+        die(f"no project '{name}' in {DEV_ROOT} (try `dev ls`)")
+    m = load_manifest(root)
+    if not m or not m.get("start"):
+        die(f"'{name}' has no `start:` in project.yml — can't auto-start it. "
+            f"Open the project and run it manually.")
+    start = m["start"]
+    port = m.get("port")
+
+    if port and port_alive(port):
+        url = f"http://localhost:{port}"
+        print(f"{name} already running → {url}")
+        return
+
+    if args.bg:
+        SERVICE_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = SERVICE_LOG_DIR / f"{name}.log"
+        with open(log_path, "a") as log_file:
+            proc = subprocess.Popen(
+                ["bash", "-lc", start],
+                cwd=str(root),
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        print(f"started {name} detached (pid {proc.pid})")
+        print(f"  cmd:  {start}")
+        print(f"  logs: {log_path}")
+        if port:
+            print(f"  url:  http://localhost:{port}  (give it a few seconds)")
+        return
+
+    # Foreground: hand the terminal over to the start command. Ctrl-C stops it.
+    print(f"starting {name}: {start}   (Ctrl-C to stop)")
+    if port:
+        print(f"→ http://localhost:{port}\n")
+    os.chdir(root)
+    os.execvp("bash", ["bash", "-lc", start])
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="dev", description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_new = sub.add_parser("new", help="scaffold a new project under ~/dev")
+    p_new.add_argument("name")
+    p_new.add_argument("--kind", default="app", choices=["app", "service", "tool", "vault", "library"])
+    p_new.add_argument("--status", default="incubating", choices=["active", "incubating", "parked"])
+    p_new.add_argument("--port", type=int, default=None)
+    p_new.add_argument("--desc", default=None)
+    p_new.add_argument("--no-git", action="store_true")
+    p_new.set_defaults(fn=cmd_new)
+
+    p_ls = sub.add_parser("ls", help="list projects with kind/status/port/running")
+    p_ls.set_defaults(fn=cmd_ls)
+
+    p_up = sub.add_parser("up", help="start a project using its project.yml start command")
+    p_up.add_argument("name")
+    p_up.add_argument("--bg", action="store_true", help="run detached, logging to dashboard/logs/services")
+    p_up.set_defaults(fn=cmd_up)
+
+    args = parser.parse_args()
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()

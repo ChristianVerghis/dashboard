@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>digest</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="back-link">←</a>
+      <span class="brand-text">digest</span>
+      <span class="muted small" id="digest-summary"></span>
+    </div>
+    <div class="meta">
+      <select id="digest-window">
+        <option value="1">last 24h</option>
+        <option value="7" selected>last week</option>
+        <option value="30">last month</option>
+      </select>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" id="hero-summary"></section>
+
+    <section class="two-col">
+      <div class="panel">
+        <div class="panel-head"><h2>By project</h2></div>
+        <div id="by-project"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Most-touched files</h2></div>
+        <div id="most-changed"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>All commits this period</h2></div>
+      <ul id="all-commits" class="digest-commits"></ul>
+    </section>
+  </main>
+
+  <script src="/static/digest.js"></script>
+</body>
+</html>

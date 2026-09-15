@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>· capabilities</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="back-link" title="back to dashboard">←</a>
+      <span class="brand-text" id="proj-name">…</span>
+      <span class="muted">·</span>
+      <span class="muted">capabilities</span>
+    </div>
+    <div class="meta">
+      <span class="muted small" id="proj-meta"></span>
+    </div>
+  </header>
+
+  <main>
+    <section id="hero" class="panel hero">
+      <div class="hero-head">
+        <h1 id="hero-name"></h1>
+        <span class="badge" id="hero-momentum">…</span>
+      </div>
+      <p id="hero-summary" class="muted"></p>
+      <div id="hero-showcase" class="hero-showcase" hidden></div>
+      <div id="signals-blocker" class="signals-blocker" hidden></div>
+      <div id="signals-row" class="signals-row" hidden></div>
+      <div id="hero-stats" class="hero-stats"></div>
+      <div id="hero-progress" class="hero-progress"></div>
+    </section>
+
+    <nav id="page-tabs" class="page-tabs">
+      <a href="#notes-panel" class="page-tab">Notes</a>
+      <a href="#goals-panel" class="page-tab">Goals</a>
+      <a href="#diff-panel" class="page-tab">Pending</a>
+      <a href="#readme-panel" class="page-tab">Readme</a>
+      <a href="#caps" class="page-tab">Capabilities</a>
+    </nav>
+
+    <section id="manifest-actions" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Actions</h2>
+        <span class="muted small">declared in <code>project.yml</code></span>
+      </div>
+      <div id="manifest-actions-body" class="quick-actions"></div>
+    </section>
+
+    <section id="reef-panel" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Agent runs · reef</h2>
+        <span class="muted small" id="reef-meta"></span>
+      </div>
+      <div id="reef-runs" class="reef-runs"></div>
+      <form id="reef-dispatch" class="reef-dispatch">
+        <textarea id="reef-prompt" rows="2" placeholder="Dispatch an agent on this repo — describe the task…"></textarea>
+        <div class="reef-dispatch-foot">
+          <span id="reef-dispatch-status" class="muted small"></span>
+          <button type="submit" class="action-btn primary">Dispatch agent</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="markets-analytics" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Analytics · 2y history</h2>
+        <span class="muted small" id="analytics-as-of"></span>
+      </div>
+      <div id="analytics-momentum"></div>
+    </section>
+
+    <section id="markets-sectors" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Sector performance</h2>
+        <span class="muted small">annualized return / vol over 252d, equal-weight</span>
+      </div>
+      <div id="sector-bars"></div>
+    </section>
+
+    <section id="markets-risk-return" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Risk-return · annualized</h2>
+        <span class="muted small">x: vol (σ) · y: return (μ) · size: |Sharpe|</span>
+      </div>
+      <div class="chart-wrap">
+        <svg id="rr-scatter" viewBox="0 0 720 360" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </section>
+
+    <section id="markets-cumret" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Cumulative returns · 252d</h2>
+        <span class="muted small" id="cumret-summary">all rebased to 100</span>
+      </div>
+      <div class="chart-wrap">
+        <svg id="cumret-chart" viewBox="0 0 720 320" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div id="cumret-legend" class="chart-legend"></div>
+    </section>
+
+    <section id="markets-correlations" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Correlation matrix · 252d daily returns</h2>
+        <span class="muted small">−1 red · 0 muted · +1 green</span>
+      </div>
+      <div id="corr-heatmap" class="corr-wrap"></div>
+    </section>
+
+    <section id="markets-prices" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Watchlist · 30-day rebased</h2>
+        <div class="chart-controls">
+          <span class="muted small" id="prices-summary"></span>
+          <div class="chart-type-toggle">
+            <button class="chart-type-btn active" data-type="line">line</button>
+            <button class="chart-type-btn" data-type="candle">candle</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <svg id="prices-chart" viewBox="0 0 720 240" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div id="prices-legend" class="chart-legend"></div>
+      <p class="muted small" style="margin-top: 8px">Click any ticker chip → drill into per-ticker OHLC + volume + news + filings.</p>
+    </section>
+
+    <section id="markets-predictions-chart" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Predictions vs reality</h2>
+        <div class="chart-controls">
+          <span class="muted small" id="predchart-summary"></span>
+          <label class="demo-toggle"><input type="checkbox" id="demo-toggle" /> show demo data</label>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <svg id="predchart" viewBox="0 0 720 280" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div id="predchart-empty" class="chart-empty muted small" hidden>
+        No resolved predictions yet. Tick "show demo data" to see what the chart will look like.
+      </div>
+    </section>
+
+    <section id="markets-briefings" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Briefings · last 14 days</h2>
+        <span class="muted small" id="briefings-count"></span>
+      </div>
+      <div id="briefings-grid" class="briefings-grid"></div>
+      <p class="muted small" style="margin-top:10px">✓ briefing exists · ⏳ exists with TBD sections · — missing · weekends shaded</p>
+    </section>
+
+    <section id="markets-actions" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Quick actions</h2>
+        <span class="muted small" id="briefing-status"></span>
+      </div>
+      <div class="quick-actions">
+        <button id="btn-run-briefing" class="action-btn primary" data-act="daily_briefing">Run today's briefing</button>
+        <button id="btn-refresh-analytics" class="action-btn primary" data-act="refresh_analytics">Refresh analytics</button>
+        <button id="btn-log-prediction" class="action-btn">+ Log prediction</button>
+        <button id="btn-list-predictions" class="action-btn" data-act="list_predictions">List predictions</button>
+        <button id="btn-show-briefing" class="action-btn" data-act="show_briefing">Show latest briefings</button>
+        <button id="btn-weekly" class="action-btn" data-act="weekly_synthesis">Weekly synthesis</button>
+        <button id="btn-smoketest" class="action-btn" data-act="smoketest">Run smoketest</button>
+      </div>
+    </section>
+
+    <section id="diff-panel" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Uncommitted changes</h2>
+        <span class="muted small" id="diff-summary"></span>
+      </div>
+      <div id="diff-body" class="diff-body"></div>
+    </section>
+
+    <section id="notes-panel" class="panel">
+      <div class="panel-head">
+        <h2>Notes</h2>
+        <span class="muted small" id="notes-status">scratchpad · markdown · saves on blur</span>
+      </div>
+      <textarea id="notes-textarea" placeholder="Quick thoughts about this project — markdown supported. Saves automatically when you click outside the box."></textarea>
+      <div id="notes-rendered" class="md notes-rendered"></div>
+    </section>
+
+    <section id="goals-panel" class="panel" hidden>
+      <div class="panel-head">
+        <h2>Goals</h2>
+        <span class="muted small" id="goals-summary"></span>
+      </div>
+      <div id="goals-body" class="goals-body"></div>
+    </section>
+
+    <section id="readme-panel" class="panel" hidden>
+      <div class="panel-head">
+        <h2>README</h2>
+        <span class="muted small" id="readme-status"></span>
+      </div>
+      <div id="readme-body" class="md preview-pane"></div>
+    </section>
+
+    <section id="caps" class="panel">
+      <div class="panel-head">
+        <h2>Capabilities</h2>
+        <a id="repo-link" class="muted small" target="_blank" rel="noopener">repository ↗</a>
+      </div>
+      <div id="caps-body" class="md preview-pane">loading…</div>
+    </section>
+  </main>
+
+  <!-- Log prediction modal -->
+  <div id="pred-modal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Log a prediction</h3>
+        <button id="pred-close">×</button>
+      </div>
+      <p class="muted small">All fields enforced per <code>CLAUDE.md</code>. Confidence below 55 will be rejected (that's an idea, not a prediction). At least one invalidation condition required.</p>
+      <form id="pred-form" class="pred-form">
+        <label>Ticker
+          <input name="ticker" placeholder="TSLA" required pattern="^[A-Z][A-Z0-9.\-]*$" />
+        </label>
+        <label>Direction
+          <select name="direction" required>
+            <option value="up">up</option>
+            <option value="down">down</option>
+            <option value="flat">flat</option>
+            <option value="outperform_sector">outperform_sector</option>
+            <option value="underperform_sector">underperform_sector</option>
+            <option value="event_occurs">event_occurs</option>
+            <option value="event_does_not_occur">event_does_not_occur</option>
+          </select>
+        </label>
+        <label>Time horizon
+          <input name="horizon" placeholder="2026-08-15 or 30d or 'next earnings'" required />
+        </label>
+        <label>Confidence (55–100)
+          <input name="confidence" type="number" min="55" max="100" value="65" required />
+        </label>
+        <label class="full">Reasoning (3–7 sentences)
+          <textarea name="reasoning" rows="4" required minlength="40"></textarea>
+        </label>
+        <label class="full">Invalidation conditions (one per line, min 1)
+          <textarea name="invalidation" rows="3" required placeholder="If Q2 deliveries below 50k\nIf 8-K announces guidance cut"></textarea>
+        </label>
+        <label class="full">Sources cited (one per line, optional)
+          <textarea name="sources" rows="2" placeholder="[[Sources/pwc-ev-outlook-2026-q1]]"></textarea>
+        </label>
+        <label>Slug (short id suffix)
+          <input name="slug" placeholder="q2-deliveries" required pattern="^[a-z0-9\-]+$" />
+        </label>
+        <div class="modal-foot">
+          <span id="pred-status" class="muted small"></span>
+          <button type="button" id="pred-cancel" class="action-btn">Cancel</button>
+          <button type="submit" id="pred-submit" class="action-btn primary">Log it</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Briefing reader modal (markets-only) -->
+  <div id="briefing-modal" class="modal" hidden>
+    <div class="modal-card modal-card-wide">
+      <div class="modal-head">
+        <h3 id="briefing-modal-title">Daily briefing</h3>
+        <button id="briefing-modal-close" aria-label="close">×</button>
+      </div>
+      <div id="briefing-modal-body" class="briefing-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="/static/marked.min.js"></script>
+  <script src="/static/project.js"></script>
+</body>
+</html>

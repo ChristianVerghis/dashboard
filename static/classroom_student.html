@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>classroom · student</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/classroom.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/classroom" class="back-link">←</a>
+      <span class="brand-text" id="student-name">…</span>
+      <span class="muted" id="student-technique"></span>
+    </div>
+    <div class="meta">
+      <span class="muted small" id="student-meta"></span>
+    </div>
+  </header>
+
+  <main class="cls-main">
+    <section id="student-stats" class="cls-cards"></section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Profile</h2>
+      </div>
+      <pre id="student-profile" class="cls-profile"></pre>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Setups (Bayesian Beta posterior)</h2>
+        <span class="muted small">alpha = wins + 5 prior; beta = losses + 5 prior</span>
+      </div>
+      <div id="student-setups" class="cls-table"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Predictions</h2>
+        <span class="muted small" id="student-log-count"></span>
+      </div>
+      <div id="student-log" class="cls-table"></div>
+    </section>
+  </main>
+
+  <script src="/static/classroom_student.js"></script>
+</body>
+</html>
