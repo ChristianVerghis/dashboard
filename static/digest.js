@@ -16,14 +16,14 @@ function renderHero(d) {
   const projParts = Object.entries(d.by_project)
     .filter(([_, v]) => v.commits > 0)
     .sort((a, b) => b[1].commits - a[1].commits)
-    .map(([k, v]) => `<div class="hero-tile"><div class="v">${v.commits}</div><div class="k">${escapeHtml(k)}</div></div>`)
+    .map(([k, v]) => `<div class="hero-tile"><div class="v">${v.commits}</div><div class="k">${Privacy.pv(k, k)}</div></div>`)
     .join('');
   const briefings = d.briefings || [];
   const briefingsList = briefings.length
     ? briefings.map(b => `<a href="https://github.com/ChristianVerghis/markets/blob/main/vault/Daily%20Briefings/${b}.md" target="_blank">${b}</a>`).join(' · ')
     : '<span class="muted">none</span>';
   document.getElementById('hero-summary').innerHTML = `
-    <div class="panel-head"><h2>Last ${days}d in numbers</h2><span class="muted small">${d.busiest_project ? `busiest: ${d.busiest_project}` : ''}</span></div>
+    <div class="panel-head"><h2>Last ${days}d in numbers</h2><span class="muted small">${d.busiest_project ? `busiest: ${Privacy.pv(d.busiest_project, d.busiest_project)}` : ''}</span></div>
     <div class="hero-grid">
       <div class="hero-tile big"><div class="v">${d.total_commits}</div><div class="k">commits</div></div>
       <div class="hero-tile"><div class="v">${d.predictions_logged}</div><div class="k">predictions logged</div></div>
@@ -42,11 +42,11 @@ function renderByProject(d) {
     .map(([k, v]) => `
       <div class="bp-block" style="border-left-color:${projectColor(k)}">
         <div class="bp-head">
-          <span class="bp-name" style="color:${projectColor(k)}">${escapeHtml(k)}</span>
+          <span class="bp-name" style="color:${projectColor(k)}">${Privacy.pv(k, k)}</span>
           <span class="muted small">${v.commits} commit${v.commits === 1 ? '' : 's'}</span>
         </div>
         <ul class="bp-subjects">
-          ${v.subjects.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
+          ${v.subjects.map(s => `<li>${Privacy.pv(s, k)}</li>`).join('')}
           ${v.commits > v.subjects.length ? `<li class="muted small">+ ${v.commits - v.subjects.length} more</li>` : ''}
         </ul>
       </div>
@@ -65,7 +65,7 @@ function renderMostChanged(d) {
       ${d.most_changed_files.map(f => {
         const w = (f.count / max) * 100;
         return `<li>
-          <code class="mc-path">${escapeHtml(f.path)}</code>
+          <code class="mc-path">${Privacy.px(f.path)}</code>
           <div class="mc-bar"><div style="width:${w.toFixed(0)}%"></div></div>
           <span class="muted small">${f.count}×</span>
         </li>`;
@@ -88,7 +88,7 @@ async function load() {
     for (const s of v.subjects) all.push({ project: proj, subject: s });
   }
   document.getElementById('all-commits').innerHTML = all.map(c =>
-    `<li><span class="proj-tag" style="color:${projectColor(c.project)}">${escapeHtml(c.project)}</span><span>${escapeHtml(c.subject)}</span></li>`
+    `<li><span class="proj-tag" style="color:${projectColor(c.project)}">${Privacy.pv(c.project, c.project)}</span><span>${Privacy.pv(c.subject, c.project)}</span></li>`
   ).join('');
 }
 

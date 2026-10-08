@@ -7,7 +7,15 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DASH="$(cd "$DIR/.." && pwd)"
 DEV="$(cd "$DASH/.." && pwd)"
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin:$PATH"
-export STEWARD_DATE="$(date +%Y-%m-%d)"
+# A run belongs to the night it starts in: after 18:00 that is tomorrow's date.
+# launchd keeps the time zone it had at login, so after the Mac moves west the
+# 02:00 run starts at 23:00 local; dated by the clock it collided with the
+# previous night's digest and skipped itself (2026-10-05).
+if [ "$(date +%H)" -ge 18 ]; then
+  export STEWARD_DATE="$(date -v+1d +%Y-%m-%d)"
+else
+  export STEWARD_DATE="$(date +%Y-%m-%d)"
+fi
 LOGDIR="$DASH/logs/steward"; mkdir -p "$LOGDIR" "$DASH/data/nightly"
 LOG="$LOGDIR/$STEWARD_DATE.log"
 LOCK="$LOGDIR/.lock"

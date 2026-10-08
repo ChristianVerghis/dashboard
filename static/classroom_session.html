@@ -1,11 +1,16 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Session detail · classroom</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <script>try { if (localStorage.getItem('dashboard-theme') === 'light') document.documentElement.classList.add('light'); } catch (e) {}</script>
   <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/viz.css?v=20261005" />
+  <link rel="stylesheet" href="/static/tokens.css?v=20261005b" />
+  <script src="/static/privacy.js?v=20261005a"></script>
+  <script src="/static/shell.js?v=20261005b"></script>
 </head>
 <body>
   <header class="topbar">
@@ -18,27 +23,38 @@
     <div class="meta">
       <a href="/classroom" class="topnav-link small">classroom home</a>
       <a href="/classroom/live" class="topnav-link small">live</a>
+      <a href="/markets" class="topnav-link small">markets</a>
     </div>
   </header>
 
-  <main class="cls-main">
+  <main style="display:grid;gap:16px;padding:16px 24px 32px">
+    <div id="source-banner"></div>
     <section class="panel">
       <div class="panel-head">
-        <h2>Session summary</h2>
-        <span class="muted small" id="summary-meta">—</span>
+        <h2>Session at a glance</h2>
+        <span class="muted small" id="summary-meta">loading…</span>
       </div>
-      <div id="summary-grid" class="cls-cards"></div>
+      <div id="kpis"></div>
+      <div id="equity" style="margin-top:14px"></div>
     </section>
-
     <section class="panel">
       <div class="panel-head">
-        <h2>Techniques · resolutions in this session</h2>
-        <span class="muted small">sorted by total P&amp;L contribution</span>
+        <h2>Techniques — which worked</h2>
+        <span class="muted small">net = after a one-tick round trip · click a row for detail</span>
       </div>
-      <div id="tech-detail" class="tech-table"></div>
+      <div id="scoreboard"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Bets — what paid, what didn't, and why</h2>
+        <span class="muted small">click a card for the full trade</span>
+      </div>
+      <div id="bets"></div>
     </section>
   </main>
 
-  <script src="/static/classroom_session.js"></script>
+  <script src="/static/viz.js?v=20261005"></script>
+  <script src="/static/classroom_insights.js?v=20261005"></script>
+  <script src="/static/classroom_session.js?v=20261005"></script>
 </body>
 </html>

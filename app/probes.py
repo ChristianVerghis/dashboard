@@ -178,7 +178,7 @@ def probe_checklist(root: Path, spec: dict) -> dict:
             out["missing"] = True
             return out
         try:
-            text = p.read_text(encoding="utf-8")
+            text = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
             out["missing"] = True
             return out

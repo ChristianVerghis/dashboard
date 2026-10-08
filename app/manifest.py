@@ -141,6 +141,7 @@ def load_manifest(root: Path) -> dict | None:
 
     m: dict = {}
     m["name"] = str(raw.get("name") or root.name)
+    m["visibility"] = "public" if str(raw.get("visibility") or "").lower() == "public" else "private"  # private mode blurs private names
     kind = str(raw.get("kind") or "app").lower()
     m["kind"] = kind if kind in KINDS else "app"
     status = str(raw.get("status") or "active").lower()

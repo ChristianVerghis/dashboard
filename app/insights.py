@@ -55,7 +55,7 @@ def _parse_goals(root: Path) -> dict | None:
     if not path.exists():
         return None
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
     done = 0
@@ -112,7 +112,7 @@ def _markets_insights(root: Path) -> list[dict]:
     wl_path = root / "config" / "watchlist.yml"
     if wl_path.exists():
         try:
-            text = wl_path.read_text(encoding="utf-8")
+            text = wl_path.read_text(encoding="utf-8", errors="replace")
             tickers = re.findall(r"^\s*-\s+\"?([A-Z][A-Z0-9.\-]*)\"?\s*(?:#.*)?$", text, re.MULTILINE)
             tickers = [t for t in tickers if t not in {"DGS10", "DCOILWTICO", "CPIAUCSL", "UNRATE", "DEXCAUS", "INDPRO"}]
             unique = sorted(set(tickers))
@@ -256,7 +256,7 @@ def _ev_network_insights(root: Path) -> list[dict]:
     bl = root / "build_log.md"
     if bl.exists():
         try:
-            text = bl.read_text(encoding="utf-8")
+            text = bl.read_text(encoding="utf-8", errors="replace")
             updates = re.findall(r"^\*\*Update\s+([^:*]+)\*?\*?:", text, re.MULTILINE)
             out.append({"label": "Build log entries", "value": f"{len(updates)}", "kind": "metric"})
             if updates:
@@ -279,15 +279,49 @@ def _ev_network_insights(root: Path) -> list[dict]:
     return out
 
 
-def _generic_insights(root: Path) -> list[dict]:
+def _generic_insights(root: Path, langs: dict[str, int] | None = None) -> list[dict]:
+    """Doc-vs-code sense from the scan's file list (git-tracked plus
+    untracked-not-ignored). Two rglobs here used to walk node_modules and
+    .venv on every rescan: ~100k directory reads, a third of the scan."""
+    langs = langs or {}
     out: list[dict] = []
-    # Just count markdown vs other files for a sense of doc-vs-code
-    md = sum(1 for _ in root.rglob("*.md"))
-    py = sum(1 for _ in root.rglob("*.py"))
-    if md or py:
+    md = langs.get("md", 0)
+    code_label, code_n = _dominant_code(langs)
+    if md or code_n:
         out.append({"label": "Markdown", "value": f"{md}", "kind": "metric"})
-        out.append({"label": "Python", "value": f"{py}", "kind": "metric"})
+        if code_n:
+            out.append({"label": code_label, "value": f"{code_n}", "kind": "metric"})
     return out
+
+
+# extension -> language label, for the framework badge fallback and the
+# generic insight. Headers count toward their language.
+_CODE_EXT = {
+    "py": "Python", "ipynb": "Python",
+    "ts": "TypeScript", "tsx": "TypeScript", "js": "JavaScript", "jsx": "JavaScript", "mjs": "JavaScript",
+    "cpp": "C++", "cc": "C++", "cxx": "C++", "hpp": "C++", "h": "C++",
+    "c": "C", "rs": "Rust", "go": "Go", "swift": "Swift", "kt": "Kotlin", "java": "Java",
+    "m": "MATLAB", "slx": "Simulink", "vhd": "VHDL", "sv": "SystemVerilog", "ino": "Arduino",
+}
+
+
+def _dominant_code(langs: dict[str, int]) -> tuple[str, int]:
+    by_label: dict[str, int] = {}
+    for ext, n in langs.items():
+        label = _CODE_EXT.get(ext)
+        if label:
+            by_label[label] = by_label.get(label, 0) + n
+    if not by_label:
+        return "", 0
+    label = max(by_label, key=by_label.get)
+    return label, by_label[label]
+
+
+def _mentions(path: Path, needle: str) -> bool:
+    try:
+        return needle in path.read_text(encoding="utf-8", errors="ignore").lower()
+    except OSError:
+        return False
 
 
 REGISTRY = [
@@ -297,8 +331,13 @@ REGISTRY = [
 ]
 
 
-def detect_framework(root: Path) -> str | None:
-    """Quick framework guess for the card badge."""
+def detect_framework(root: Path, langs: dict[str, int] | None = None) -> str | None:
+    """Quick framework guess for the card badge: build markers first, then
+    the dominant language in the scan's file list. "Vault" is reserved for
+    actual Obsidian vaults; it used to be the fallback for anything with a
+    markdown file at its root, which labelled an Unreal game a vault."""
+    if any(root.glob("*.uproject")):
+        return "Unreal"
     if (root / "next.config.mjs").exists() or (root / "next.config.js").exists() or (root / "next.config.ts").exists():
         return "Next.js"
     if (root / "package.json").exists():
@@ -311,20 +350,30 @@ def detect_framework(root: Path) -> str | None:
             return "Node"
         except Exception:
             return "Node"
-    if (root / "pyproject.toml").exists() or (root / "requirements.txt").exists():
-        if (root / "uvicorn").exists() or any((root / "app").rglob("*.py")) if (root / "app").exists() else False:
+    py_manifests = [p for p in (root / "requirements.txt", root / "pyproject.toml") if p.exists()]
+    if py_manifests:
+        if any(_mentions(p, "fastapi") for p in py_manifests):
             return "FastAPI"
         return "Python"
     if (root / "Cargo.toml").exists():
         return "Rust"
     if (root / "go.mod").exists():
         return "Go"
-    if any(root.glob("*.md")):
+    if (root / "platformio.ini").exists():
+        return "PlatformIO"
+    if (root / "CMakeLists.txt").exists():
+        return "C++"
+    if (root / ".obsidian").is_dir():
         return "Vault"
+    label, n = _dominant_code(langs or {})
+    if n >= 3:
+        return label
+    if (langs or {}).get("md", 0) or any(root.glob("*.md")):
+        return "Docs"
     return None
 
 
-def insights_for(root: Path) -> list[dict]:
+def insights_for(root: Path, langs: dict[str, int] | None = None) -> list[dict]:
     base: list[dict] = _goal_insights(root)
     for applies, fn in REGISTRY:
         try:
@@ -333,5 +382,5 @@ def insights_for(root: Path) -> list[dict]:
                 return base
         except Exception:
             continue
-    base.extend(_generic_insights(root))
+    base.extend(_generic_insights(root, langs))
     return base

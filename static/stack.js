@@ -17,7 +17,7 @@ function projectIcon(name) {
   if (parts.length >= 2) initials = (parts[0][0] + parts[1][0]).toUpperCase();
   else initials = name.slice(0, 2).toUpperCase();
   const color = projectColor(name);
-  return `<span class="proj-icon" style="background:${color}1a; color:${color}; border-color:${color}40">${escapeHtml(initials)}</span>`;
+  return `<span class="proj-icon pv" data-proj="${escapeHtml(name)}" style="background:${color}1a; color:${color}; border-color:${color}40">${escapeHtml(initials)}</span>`;
 }
 
 async function load() {
@@ -26,24 +26,26 @@ async function load() {
   document.getElementById('stack-count').textContent = `${data.projects.length} projects`;
   const root = document.getElementById('stack-grid');
   root.innerHTML = data.projects.map(p => {
+    // only "Next up" carries prose (a goal); the other insight values are counts and stay crisp
     const insights = (p.insights || []).slice(0, 6).map(i =>
-      `<div class="stack-insight"><div class="k">${escapeHtml(i.label)}</div><div class="v">${escapeHtml(i.value)}</div></div>`
+      `<div class="stack-insight"><div class="k">${escapeHtml(i.label)}</div><div class="v">${i.label === 'Next up' ? Privacy.pv(i.value, p.name) : escapeHtml(i.value)}</div></div>`
     ).join('');
+    // rendered markdown: the .md container carries pv + data-proj, so a public project's doc stays readable
     const cap = p.capabilities && window.marked
-      ? marked.parse(p.capabilities)
-      : `<p class="muted small">No CAPABILITIES.md yet — drop one in the project root.</p>`;
+      ? (p.capabilities_source === 'README.md' ? '<p class="muted small">From README.md (no CAPABILITIES.md yet)</p>' : '') + Shell.rebaseLinks(marked.parse(p.capabilities), p.name)
+      : `<p class="muted small">No CAPABILITIES.md or README.md yet.</p>`;
     const fwBadge = p.framework
       ? `<span class="fw-badge ${frameworkClass(p.framework)}">${escapeHtml(p.framework)}</span>`
       : '';
     return `
       <article class="stack-col" data-name="${escapeHtml(p.name)}">
         <header>
-          <h2>${projectIcon(p.name)} <a href="/project/${encodeURIComponent(p.name)}">${escapeHtml(p.name)}</a> ${fwBadge}</h2>
+          <h2>${projectIcon(p.name)} <a href="/project/${encodeURIComponent(p.name)}">${Privacy.pv(p.name, p.name)}</a> ${fwBadge}</h2>
           <span class="badge ${p.momentum}">${p.momentum}</span>
         </header>
-        <p class="stack-summary">${escapeHtml(p.summary || '')}</p>
+        <p class="stack-summary">${Privacy.pv(p.summary || '', p.name)}</p>
         ${insights ? `<div class="stack-insights">${insights}</div>` : ''}
-        <div class="md">${cap}</div>
+        <div class="md pv" data-proj="${escapeHtml(p.name)}">${cap}</div>
       </article>
     `;
   }).join('');

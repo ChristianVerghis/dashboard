@@ -1,30 +1,38 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>routines</title>
+  <title>Routines</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/tokens.css" />
+  <link rel="stylesheet" href="/static/page.css" />
+  <script src="/static/privacy.js"></script>
+  <script src="/static/shell.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <a href="/" class="back-link">←</a>
-      <span class="brand-text">routines</span>
-      <span class="muted">·</span>
-      <span class="muted small" id="captured-at"></span>
-    </div>
-    <div class="meta">
-      <span class="muted small" id="now-label"></span>
-    </div>
-  </header>
+  <main class="page">
+    <header class="page-head">
+      <h1>Routines</h1>
+      <p>Everything that runs on its own, and whether it actually ran. Local jobs are checked against their own logs; cloud routines against what they commit. <span class="when" id="checked"></span></p>
+    </header>
 
-  <main>
-    <section id="alert" class="panel" hidden></section>
-    <section id="grid"></section>
+    <div id="clock-note"></div>
+
+    <section class="section" aria-labelledby="h-local">
+      <div class="section-head"><h2 id="h-local">On this Mac</h2><span class="aside">launchd, ~/Library/LaunchAgents</span></div>
+      <table class="table" id="local"><thead><tr>
+        <th class="lead"></th><th>Job</th><th class="hide-sm">Schedule</th><th>Next run</th><th>Last ran</th><th class="act"></th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="section" aria-labelledby="h-cloud">
+      <div class="section-head"><h2 id="h-cloud">In the cloud</h2><span class="aside" id="cloud-aside"></span></div>
+      <table class="table" id="cloud"><thead><tr>
+        <th class="lead"></th><th>Project</th><th>Last output</th><th class="hide-sm">Usual gap</th><th>Routines</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
   </main>
-
   <script src="/static/routines.js"></script>
 </body>
 </html>

@@ -53,14 +53,14 @@ function renderEntry(e) {
       <div class="jrnl-spine" style="background:${color}"></div>
       <div class="jrnl-body">
         <div class="jrnl-head">
-          <span class="jrnl-proj" style="color:${color}">${escapeHtml(e.project)}</span>
+          <span class="jrnl-proj" style="color:${color}">${Privacy.pv(e.project, e.project)}</span>
           <span class="jrnl-sha muted small">${escapeHtml(e.short_sha)}</span>
           <span class="muted small">·</span>
           <span class="muted small">${fmtTime(e.iso)}</span>
           ${linkBtn ? `<span class="muted small">·</span> ${linkBtn}` : ''}
         </div>
-        <h3 class="jrnl-subject">${escapeHtml(e.subject)}</h3>
-        ${e.body ? `<pre class="jrnl-bodytext">${escapeHtml(e.body.slice(0, 800))}${e.body.length > 800 ? '\n…' : ''}</pre>` : ''}
+        <h3 class="jrnl-subject">${Privacy.pv(e.subject, e.project)}</h3>
+        ${e.body ? `<pre class="jrnl-bodytext">${Privacy.pv(e.body.slice(0, 800), e.project)}${e.body.length > 800 ? '\n…' : ''}</pre>` : ''}
       </div>
     </article>
   `;
@@ -142,9 +142,9 @@ async function runSearch(q) {
         const url = commitUrl(m.remote_url, m.sha);
         const link = url ? ` · <a href="${url}" target="_blank" rel="noopener" class="muted">↗</a>` : '';
         return `<li>
-          <span class="proj-tag" style="color:${projectColor(m.project)}">${escapeHtml(m.project)}</span>
+          <span class="proj-tag" style="color:${projectColor(m.project)}">${Privacy.pv(m.project, m.project)}</span>
           <code class="muted small">${escapeHtml(m.short_sha)}</code>
-          <span class="search-subject">${highlight(m.subject, q)}</span>
+          <span class="search-subject pv" data-proj="${escapeHtml(m.project)}">${highlight(m.subject, q)}</span>
           <span class="muted small">${fmtTime(m.iso)}${link}</span>
         </li>`;
       }).join('')}

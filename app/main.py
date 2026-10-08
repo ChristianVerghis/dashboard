@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import sys
+import threading
+import time
 from contextlib import asynccontextmanager
+from datetime import datetime as _datetime
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from fastapi import HTTPException
@@ -23,17 +28,210 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = REPO_ROOT / "static"
 
 
+async def _keep_warm() -> None:
+    """Build the project snapshot and the 52-week aggregate before the first
+    client asks, then refresh the aggregate before its cache expires, so a
+    page load never waits on a cold 4-8 s scan."""
+    try:
+        await streams.fresh_payload()
+        from . import inbox as _ib
+        await asyncio.to_thread(_ib.all_items)  # the first build diffs every agent branch
+    except Exception:
+        pass
+    while True:
+        try:
+            await asyncio.to_thread(heatmap_data, 52)
+            from . import claude_sessions as _cs
+            await asyncio.to_thread(_cs.all_sessions)
+        except Exception:
+            pass
+        await asyncio.sleep(200)
+
+
+def _feed(line: str) -> None:
+    """One line into the live log pane and the launchd error log."""
+    stamped = f"{_datetime.now().strftime('%H:%M:%S')} {line}"
+    print(stamped, file=sys.stderr, flush=True)
+    try:
+        with open(streams.LOG_PATH, "a", encoding="utf-8") as fh:
+            fh.write(stamped + "\n")
+    except OSError:
+        pass
+
+
+_loop_beat = time.monotonic()
+
+
+async def _stall_watchdog() -> None:
+    """launchd's KeepAlive restarts a crashed dashboard, not a wedged one.
+
+    Twice the process stayed up but answered nothing: every /api call timed
+    out while it sat at 300 % CPU, and the fix each time was a manual
+    `launchctl kickstart`. Sync endpoints run on anyio's worker threads; when
+    those are all stuck, a no-op cannot get one either. Three misses in a row
+    (about 2.5 min) and the process exits non-zero, which launchd treats as a
+    crash and restarts. A thread outside the event loop covers the case where
+    the loop itself is blocked. DASHBOARD_WATCHDOG=0 turns both off.
+    """
+    global _loop_beat
+    import anyio
+
+    def _loop_monitor() -> None:
+        while True:
+            time.sleep(15)
+            stalled = time.monotonic() - _loop_beat
+            if stalled > 120:
+                _feed(f"[watchdog] event loop blocked for {stalled:.0f}s; exiting so launchd restarts the dashboard")
+                os._exit(75)
+
+    threading.Thread(target=_loop_monitor, name="loop-monitor", daemon=True).start()
+    misses = 0
+    while True:
+        for _ in range(6):
+            _loop_beat = time.monotonic()
+            await asyncio.sleep(5)
+        try:
+            await asyncio.wait_for(anyio.to_thread.run_sync(lambda: None, abandon_on_cancel=True), 20)
+            misses = 0
+        except asyncio.TimeoutError:
+            misses += 1
+            _feed(f"[watchdog] request threads unresponsive for 20s ({misses}/3)")
+            if misses >= 3:
+                _feed("[watchdog] exiting so launchd restarts the dashboard")
+                os._exit(75)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # never let the probe die: the loop monitor would read a frozen beat
+            _feed(f"[watchdog] probe error {exc!r}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     streams.bus.attach_loop(asyncio.get_running_loop())
     streams.start_observer()
+    from . import fetcher as _fetcher
+    from . import perf as _perf_mod
+    tasks = [asyncio.create_task(_keep_warm()), asyncio.create_task(_fetcher.loop()),
+             asyncio.create_task(_perf_mod.background_loop())]
+    if os.environ.get("DASHBOARD_WATCHDOG", "1") != "0":
+        tasks.append(asyncio.create_task(_stall_watchdog()))
     try:
         yield
     finally:
+        for t in tasks:
+            t.cancel()
         streams.stop_observer()
 
 
 app = FastAPI(title="Projects dashboard", lifespan=lifespan)
+
+# Local-only hardening. The server binds to 127.0.0.1, but a page on any site
+# can still (a) point a hostname at 127.0.0.1 (DNS rebinding) and call the JSON
+# endpoints with that Host, or (b) send a cross-site POST or WebSocket upgrade.
+# Refuse hosts that are not literally local, and refuse state-changing requests
+# whose Origin is not local. Same-origin browser traffic and local CLI tools
+# (curl, no Origin header) are unaffected.
+from starlette.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
+from starlette.requests import Request as _Req  # noqa: E402
+from starlette.responses import JSONResponse as _JSON  # noqa: E402
+from . import ask as _ask, claude_sessions as _cs, launch as _launch, brief as _brief  # noqa: E402
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]"])
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]", "::1"}
+
+
+def is_local_origin(origin: str) -> bool:
+    """Exact-host check: a prefix test would let http://localhost.evil.com through."""
+    from urllib.parse import urlsplit
+    try:
+        u = urlsplit(origin)
+    except ValueError:
+        return False
+    return u.scheme in ("http", "https") and (u.hostname or "") in _LOCAL_HOSTS
+
+
+@app.middleware("http")
+async def _always_revalidate(request: _Req, call_next):
+    """Pages and static files are revalidated on every load (a 304 when
+    unchanged), so an edited script or stylesheet can never be served from a
+    stale browser cache. Replaces bumping ?v= by hand after each edit."""
+    response = await call_next(request)
+    if request.method == "GET" and (request.url.path.startswith("/static/")
+                                    or response.headers.get("content-type", "").startswith("text/html")):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+@app.middleware("http")
+async def _reject_cross_site_writes(request: _Req, call_next):
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        origin = request.headers.get("origin", "")
+        if origin and not is_local_origin(origin):
+            return _JSON({"detail": "cross-site request refused"}, status_code=403)
+    return await call_next(request)
+
+
+from . import agents as _agents, inbox as _inbox, schedule as _schedule, home as _home  # noqa: E402
+from . import fetcher as _fetch, freshness as _fresh, routines as _routines, perf as _perf  # noqa: E402
+
+app.include_router(_ask.router)
+app.include_router(_cs.router)
+app.include_router(_launch.router)
+app.include_router(_brief.router)
+app.include_router(_agents.router)
+app.include_router(_inbox.router)
+app.include_router(_schedule.router)
+app.include_router(_home.router)
+app.include_router(_fetch.router)
+app.include_router(_fresh.router)
+app.include_router(_routines.router)
+app.include_router(_perf.router)
+
+
+@app.post("/api/self/restart")
+def api_self_restart():
+    """Exit non-zero a moment after answering; launchd's KeepAlive starts the
+    dashboard again on the code now on disk."""
+    _feed("[dashboard] restart requested from the page")
+    threading.Timer(0.5, lambda: os._exit(75)).start()
+    return {"ok": True}
+
+
+class StatusChange(BaseModel):
+    status: str
+
+
+@app.post("/api/projects/{name}/status")
+def api_project_status(name: str, req: StatusChange):
+    """Set `status:` in a project's project.yml (the one line, comments and
+    layout untouched). The change is left uncommitted in that repo."""
+    import re as _re
+    allowed = {"active", "incubating", "parked", "dormant", "archived"}
+    if req.status not in allowed:
+        raise HTTPException(400, f"status must be one of {', '.join(sorted(allowed))}")
+    p = proj.get_one(name)
+    if not p:
+        raise HTTPException(404, "unknown project")
+    path = Path(p.path) / "project.yml"
+    if not path.exists():
+        raise HTTPException(404, "this project has no project.yml")
+    text = path.read_text(encoding="utf-8")
+    new, n = _re.subn(r"(?m)^status:[ \t]*[^\s#]*", f"status: {req.status}", text, count=1)
+    if n == 0:
+        new = _re.sub(r"(?m)^(kind:[^\n]*\n)", rf"\1status: {req.status}\n", text, count=1)
+        if new == text:
+            new = f"status: {req.status}\n" + text
+    path.write_text(new, encoding="utf-8")
+    proj.mark_dirty(path)
+    return {"ok": True, "project": name, "status": req.status}
+
+
+@app.get("/api/privacy")
+def api_privacy():
+    """Names that stay readable in private mode (manifest visibility: public, or data/privacy.json)."""
+    from . import privacy as _privacy
+    return {"public": _privacy.public_projects()}
 
 
 @app.get("/api/projects")
@@ -676,50 +874,248 @@ def api_search(q: str, limit: int = 50):
     return {"q": q, "matches": matches[:limit], "total": len(matches)}
 
 
-@app.get("/api/heatmap")
-def api_heatmap(weeks: int = 12):
-    """Per-day commit count summed across all projects, last N weeks."""
+_heatmap_cache: dict[int, tuple[float, dict]] = {}
+_heatmap_lock = threading.Lock()
+_heatmap_build_locks: dict[int, threading.Lock] = {}
+_heatmap_refreshing: set[int] = set()
+_HEATMAP_TTL = 240.0
+
+
+def heatmap_data(weeks: int = 12) -> dict:
+    """Cached commit aggregates (see _build_heatmap). Stale-while-revalidate:
+    an aggregate older than 4 min is still served at once while one rebuild
+    runs in the background. Only a cold call waits, and concurrent cold calls
+    share a single build instead of each running ~40 git subprocesses."""
+    weeks = max(1, min(int(weeks), 104))
+    now = time.time()
+    with _heatmap_lock:
+        cached = _heatmap_cache.get(weeks)
+        if cached:
+            if now - cached[0] >= _HEATMAP_TTL and weeks not in _heatmap_refreshing:
+                _heatmap_refreshing.add(weeks)
+                threading.Thread(target=_refresh_heatmap, args=(weeks,), daemon=True).start()
+            return cached[1]
+        build_lock = _heatmap_build_locks.setdefault(weeks, threading.Lock())
+    with build_lock:
+        cached = _heatmap_cache.get(weeks)
+        if cached:
+            return cached[1]
+        out = _build_heatmap(weeks)
+        _heatmap_cache[weeks] = (time.time(), out)
+        return out
+
+
+def heatmap_if_ready(weeks: int = 52) -> dict | None:
+    """The cached aggregate, or None while the first build runs (which this
+    starts). For callers that would rather show nothing than wait 5-8 s."""
+    weeks = max(1, min(int(weeks), 104))
+    if _heatmap_cache.get(weeks):
+        return heatmap_data(weeks)  # still refreshes in the background when old
+    build_lock = _heatmap_build_locks.setdefault(weeks, threading.Lock())
+    if not build_lock.locked():  # one cold build at a time, shared with heatmap_data's
+        threading.Thread(target=heatmap_data, args=(weeks,), daemon=True).start()
+    return None
+
+
+def _refresh_heatmap(weeks: int) -> None:
+    try:
+        _heatmap_cache[weeks] = (time.time(), _build_heatmap(weeks))
+    except Exception:
+        pass
+    finally:
+        with _heatmap_lock:
+            _heatmap_refreshing.discard(weeks)
+
+
+def _build_heatmap(weeks: int) -> dict:
+    """Commit aggregates across all projects for the last N weeks, bucketed by
+    the user's local day like /api/today:
+      days[]      per-day count + per-project breakdown
+      punch       weekday x hour counts, last 90 days
+      codefreq[]  per-week [insertions, deletions], oldest first
+      sessions    commit clusters (gap < 45 min) -> block-length histogram,
+                  median block this 30 days vs the previous 30
+      tags        tags created in the window, newest first
+      steward     nightly digests present in the last 30 days
+    A cold build is ~40 git subprocesses (log --numstat + tags per repo),
+    5-8 s; heatmap_data() caches it.
+    """
     import subprocess
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta
     from collections import defaultdict
-    cutoff = (datetime.now(timezone.utc) - timedelta(weeks=weeks)).date()
+    LOCAL_TZ = _home.local_tz()
+    now_local = datetime.now(LOCAL_TZ)
+    cutoff = (now_local - timedelta(weeks=weeks)).date()
     counts: dict[str, int] = defaultdict(int)
     by_project_day: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    punch = [[0] * 24 for _ in range(7)]  # [weekday 0=Sun][hour], last 90 days
+    punch_cutoff = (now_local - timedelta(days=90)).date()
+    adds_by_day: dict[str, int] = defaultdict(int)
+    dels_by_day: dict[str, int] = defaultdict(int)
+    stamps: list[float] = []  # every commit's epoch seconds, all repos
+    tags: list[dict] = []
     for p in proj.list_projects():
         if not p.has_git:
             continue
         try:
             r = subprocess.run(
-                ["git", "log", f"--since={weeks} weeks ago", "--pretty=format:%aI"],
-                cwd=p.path, capture_output=True, text=True, timeout=10,
+                ["git", "log", f"--since={weeks} weeks ago", "--no-merges",
+                 "--pretty=format:%x1e%aI", "--numstat"],
+                cwd=p.path, capture_output=True, text=True, timeout=20,
             )
         except Exception:
             continue
         if r.returncode != 0:
             continue
-        for line in r.stdout.splitlines():
-            try:
-                d = datetime.fromisoformat(line.strip().replace("Z", "+00:00")).date()
-                if d < cutoff:
-                    continue
-                counts[d.isoformat()] += 1
-                by_project_day[d.isoformat()][p.name] += 1
-            except (ValueError, AttributeError):
+        for rec in r.stdout.split("\x1e"):
+            rec = rec.strip()
+            if not rec:
                 continue
-    # Build the grid: weeks columns, 7 rows (Sun-Sat or Mon-Sun)
-    today = datetime.now(timezone.utc).date()
+            head, _, body = rec.partition("\n")
+            try:
+                dt = datetime.fromisoformat(head.strip().replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            local_dt = dt.astimezone(LOCAL_TZ)
+            d = local_dt.date()
+            if d < cutoff:
+                continue
+            key = d.isoformat()
+            counts[key] += 1
+            by_project_day[key][p.name] += 1
+            stamps.append(dt.timestamp())
+            if d >= punch_cutoff:
+                punch[d.isoweekday() % 7][local_dt.hour] += 1
+            for line in body.splitlines():
+                parts = line.split("\t")
+                if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+                    adds_by_day[key] += int(parts[0])
+                    dels_by_day[key] += int(parts[1])
+        try:
+            t = subprocess.run(
+                ["git", "for-each-ref", "--sort=-creatordate",
+                 "--format=%(refname:short)\t%(creatordate:iso-strict)", "refs/tags"],
+                cwd=p.path, capture_output=True, text=True, timeout=10,
+            )
+            for line in t.stdout.splitlines():
+                name, _, iso = line.partition("\t")
+                try:
+                    tdt = datetime.fromisoformat(iso.strip().replace("Z", "+00:00")).astimezone(LOCAL_TZ)
+                except ValueError:
+                    continue
+                if tdt.date() >= cutoff:
+                    tags.append({"project": p.name, "tag": name, "date": tdt.date().isoformat(),
+                                 "age_days": (now_local.date() - tdt.date()).days})
+        except Exception:
+            pass
+
+    # External activity: per-day counts from sources that are not git repos on
+    # this machine (e.g. a work GitLab calendar), dropped in as JSON files:
+    #   data/external_activity/<id>.json = {name, kind, source, approximate, days: {"YYYY-MM-DD": n}}
+    # They add to the day totals and appear as their own name in by_project; they
+    # carry no times, so punch card, sessions and code frequency ignore them.
+    external: list[dict] = []
+    ext_dir = REPO_ROOT / "data" / "external_activity"
+    if ext_dir.exists():
+        import json as _json
+        for f in sorted(ext_dir.glob("*.json")):
+            try:
+                spec = _json.loads(f.read_text())
+            except Exception:
+                continue
+            name = spec.get("name") or f.stem
+            added = 0
+            for k, n in (spec.get("days") or {}).items():
+                try:
+                    if datetime.strptime(k, "%Y-%m-%d").date() < cutoff or int(n) <= 0:
+                        continue
+                except ValueError:
+                    continue
+                counts[k] += int(n)
+                by_project_day[k][name] += int(n)
+                added += int(n)
+            external.append({"name": name, "kind": spec.get("kind", "external"), "source": spec.get("source", ""),
+                             "approximate": bool(spec.get("approximate", False)), "total": added})
+
+    today = now_local.date()
     days = []
     for i in range(weeks * 7 - 1, -1, -1):
         d = today - timedelta(days=i)
+        k = d.isoformat()
         days.append({
-            "date": d.isoformat(),
+            "date": k,
             "weekday": d.isoweekday() % 7,  # 0=Sun, 6=Sat for SVG layout
-            "count": counts.get(d.isoformat(), 0),
-            "by_project": dict(by_project_day.get(d.isoformat(), {})),
+            "count": counts.get(k, 0),
+            "by_project": dict(by_project_day.get(k, {})),
         })
+    codefreq = []
+    for w in range(weeks):
+        chunk = days[w * 7:(w + 1) * 7]
+        codefreq.append([sum(adds_by_day.get(x["date"], 0) for x in chunk),
+                         sum(dels_by_day.get(x["date"], 0) for x in chunk)])
+
+    # Sessions: sort all commit times, split where the gap exceeds 45 minutes.
+    stamps.sort()
+    GAP = 45 * 60
+    sessions: list[tuple[float, float, int]] = []  # start, end, commits
+    for s_ in stamps:
+        if sessions and s_ - sessions[-1][1] <= GAP:
+            st, _, n = sessions[-1]
+            sessions[-1] = (st, s_, n + 1)
+        else:
+            sessions.append((s_, s_, 1))
+    now_ts = now_local.timestamp()
+    def _dur(sess):  # minutes; a single commit counts as a 10-minute block
+        return max(10.0, (sess[1] - sess[0]) / 60.0)
+    recent = [_dur(x) for x in sessions if x[1] >= now_ts - 30 * 86400]
+    prev = [_dur(x) for x in sessions if now_ts - 60 * 86400 <= x[1] < now_ts - 30 * 86400]
+    def _median(v):
+        if not v:
+            return 0
+        v = sorted(v)
+        m = len(v) // 2
+        return v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2
+    buckets = [("<15m", 0, 15), ("15-45m", 15, 45), ("45m-1.5h", 45, 90), ("1.5-3h", 90, 180), ("3h+", 180, 10**9)]
+    hist = [{"label": lab, "n": sum(1 for x in recent if lo <= x < hi)} for lab, lo, hi in buckets]
+    longest_recent = max(recent, default=0)
+    sessions_out = {
+        "count_30d": len(recent), "median_30d": round(_median(recent)), "median_prev_30d": round(_median(prev)),
+        "longest_30d": round(longest_recent), "hist": hist,
+        "blocks_over_90m_30d": sum(1 for x in recent if x >= 90),
+    }
+
+    nightly_dir = REPO_ROOT / "data" / "nightly"
+    steward_days = 0
+    if nightly_dir.exists():
+        since = today - timedelta(days=30)
+        for f in nightly_dir.glob("*.md"):
+            try:
+                if datetime.strptime(f.stem[:10], "%Y-%m-%d").date() >= since:
+                    steward_days += 1
+            except ValueError:
+                continue
+
     total = sum(d["count"] for d in days)
     max_count = max((d["count"] for d in days), default=0)
-    return {"days": days, "weeks": weeks, "total": total, "max": max_count}
+    out = {"days": days, "weeks": weeks, "total": total, "max": max_count, "punch": punch,
+           "codefreq": codefreq, "sessions": sessions_out, "external": external,
+           "tags": sorted(tags, key=lambda x: x["date"], reverse=True)[:40],
+           "steward": {"days_with_digest_30d": steward_days}}
+    return out
+
+
+@app.get("/api/heatmap")
+def api_heatmap(weeks: int = 12):
+    return heatmap_data(weeks)
+
+
+@app.get("/share.html")
+def page_share(names: str = "1"):
+    """Self-contained progress card: aggregates only, no commit messages, paths,
+    goals text, ports or branch names. Safe to send to friends."""
+    from fastapi.responses import HTMLResponse
+    from . import share
+    return HTMLResponse(share.render(heatmap_data(52), proj.list_projects(), show_names=names != "0"))
 
 
 @app.get("/api/journal")
@@ -986,6 +1382,48 @@ def api_markets_ticker(symbol: str, days: int = 90):
 @app.get("/ticker/{symbol}")
 def page_ticker(symbol: str):
     return FileResponse(str(STATIC_DIR / "ticker.html"))
+
+
+def _markets_processed() -> Path:
+    """data/processed of the markets repo. MARKETS_ROOT overrides the
+    location (used to preview a branch checkout before it lands on main)."""
+    import os
+    root = os.environ.get("MARKETS_ROOT")
+    base = Path(root) if root else proj.PROJECTS_ROOT / "markets"
+    return base / "data" / "processed"
+
+
+def _read_processed_json(name: str):
+    import json as _json
+    p = _markets_processed() / name
+    if not p.exists():
+        return None
+    try:
+        return _json.loads(p.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+@app.get("/markets")
+def page_markets():
+    return FileResponse(str(STATIC_DIR / "markets.html"))
+
+
+@app.get("/api/markets/map")
+def api_markets_map():
+    """Whole-market map (regime, rotation, movers, correlations, EV vs
+    market) written by markets/scripts/market_map.py."""
+    d = _markets_cached("map", lambda: _read_processed_json("market_map.json"))
+    if d is None:
+        return {"missing": True,
+                "hint": "Run markets' refresh-market-map action (ingest_market.py + market_map.py)."}
+    return d
+
+
+@app.get("/api/markets/series")
+def api_markets_series():
+    d = _markets_cached("series", lambda: _read_processed_json("market_series.json"))
+    return d or {"missing": True, "dates": [], "series": {}}
 
 
 @app.get("/api/markets/prices")
@@ -1426,14 +1864,13 @@ def _snapshot_stale(snap: dict, now, max_age_days: float = 7.0) -> dict | None:
 
 @app.get("/api/today")
 def api_today():
-    """Per-project counts for the current local day (America/Toronto).
+    """Per-project counts for the current local day (the Mac's own zone).
 
     "Today" means the date as seen by the user, not UTC — otherwise late-night
     work in ET shows up as zero because UTC has rolled over.
     """
     from datetime import datetime, timezone
-    from zoneinfo import ZoneInfo
-    LOCAL_TZ = ZoneInfo("America/Toronto")
+    LOCAL_TZ = _home.local_tz()
     now_utc = datetime.now(timezone.utc)
     local_date = now_utc.astimezone(LOCAL_TZ).date()
     summary = {
@@ -1646,12 +2083,16 @@ def api_stack():
     out = []
     for p in proj.list_projects():
         path = proj.PROJECTS_ROOT / p.name / "CAPABILITIES.md"
-        capabilities = ""
+        capabilities, source = "", None
         if path.exists():
             try:
-                capabilities = path.read_text(encoding="utf-8")[:60_000]
+                capabilities, source = path.read_text(encoding="utf-8")[:60_000], "CAPABILITIES.md"
             except OSError:
                 pass
+        if not capabilities:
+            # most projects never wrote one: show the README's opening instead of an empty column
+            capabilities = _readme_opening(proj.PROJECTS_ROOT / p.name / "README.md")
+            source = "README.md" if capabilities else None
         out.append({
             "name": p.name,
             "framework": p.framework,
@@ -1662,8 +2103,27 @@ def api_stack():
             "remote_url": p.remote_url,
             "insights": p.insights[:6],
             "capabilities": capabilities,
+            "capabilities_source": source,
         })
     return {"projects": out}
+
+
+def _readme_opening(path: Path, max_chars: int = 2500) -> str:
+    """The README up to its third section heading, without the title line."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    lines, sections = [], 0
+    for line in text.splitlines():
+        if line.startswith("# ") and not lines:
+            continue
+        if line.startswith("## "):
+            sections += 1
+            if sections > 2:
+                break
+        lines.append(line)
+    return "\n".join(lines).strip()[:max_chars]
 
 
 @app.get("/api/projects/{name}/readme")
@@ -1704,30 +2164,6 @@ def page_project(name: str):
 @app.get("/routines")
 def page_routines():
     return FileResponse(str(STATIC_DIR / "routines.html"))
-
-
-@app.get("/api/routines")
-def api_routines():
-    """Return the routines snapshot file plus computed time-to-fire."""
-    import json
-    from datetime import datetime, timezone
-    snap_path = REPO_ROOT / "data" / "routines_snapshot.json"
-    if not snap_path.exists():
-        return {"captured_at": None, "routines": [], "alert": None}
-    data = json.loads(snap_path.read_text())
-    now = datetime.now(timezone.utc)
-    data["stale"] = _snapshot_stale(data, now)
-    for r in data.get("routines", []):
-        nra = r.get("next_run_at")
-        if not nra:
-            r["seconds_until_fire"] = None
-            continue
-        try:
-            dt = datetime.fromisoformat(nra.replace("Z", "+00:00"))
-            r["seconds_until_fire"] = int((dt - now).total_seconds())
-        except (ValueError, TypeError):
-            r["seconds_until_fire"] = None
-    return data
 
 
 @app.get("/api/projects/{name}/preview")
@@ -1846,15 +2282,58 @@ class StartSessionBody(BaseModel):
     symbols: list[str] | None = None
     provider: str = "mock"
     scenario: str = "random_walk"
+    universe: str | None = None
+    slippage_bps: float = 0.0
+    replay_speed: float | None = None
+    seed: int | None = None
 
 
 @app.post("/api/classroom/live/start")
 async def api_st_start(body: StartSessionBody):
+    if body.provider not in ("mock", "yfinance", "alpaca"):
+        raise HTTPException(400, "unknown provider")
     return await st.start_session(
         symbols=body.symbols,
         provider=body.provider,
         scenario=body.scenario,
+        universe=body.universe,
+        slippage_bps=body.slippage_bps,
+        replay_speed=body.replay_speed,
+        seed=body.seed,
     )
+
+
+@app.get("/api/classroom/live/insights")
+def api_st_insights(top: int = 12):
+    """What's in play, what's working, which bets paid and why — live session."""
+    return st.live_insights(top_n=max(1, min(top, 40)))
+
+
+@app.get("/api/classroom/live/session/{session_id}/insights")
+def api_st_session_insights(session_id: str, top: int = 12):
+    d = st.session_insights(session_id, top_n=max(1, min(top, 40)))
+    if d is None:
+        raise HTTPException(404, "session not found")
+    return d
+
+
+@app.get("/classroom/retest")
+def page_classroom_retest():
+    return FileResponse(str(STATIC_DIR / "classroom_retest.html"))
+
+
+@app.get("/api/classroom/retest")
+def api_classroom_retest():
+    """Weekly re-test track record: does any short-term edge persist?"""
+    return st.retest_view()
+
+
+@app.get("/api/classroom/live/bet/{bet_id}")
+def api_st_bet(bet_id: str, session: str = ""):
+    d = st.bet_detail(session, bet_id)
+    if d is None:
+        raise HTTPException(404, "bet not found")
+    return d
 
 
 @app.post("/api/classroom/live/stop")
@@ -1940,4 +2419,15 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/")
 def root():
+    """Insights is the landing page; mission control is one click away."""
     return FileResponse(str(STATIC_DIR / "index.html"))
+
+
+@app.get("/control")
+def page_control():
+    return FileResponse(str(STATIC_DIR / "control.html"))
+
+
+@app.get("/insights")
+def page_insights():
+    return RedirectResponse("/", status_code=307)  # Insights' old address

@@ -2,9 +2,14 @@
 
 const NAME = decodeURIComponent(window.location.pathname.replace(/^\/project\//, ''));
 
-document.title = `${NAME} · capabilities`;
-document.getElementById('proj-name').textContent = NAME;
-document.getElementById('hero-name').textContent = NAME;
+// Private mode: neutral tab title, blurred breadcrumb / heading / summary, and the per-project
+// markdown panes carry pv + data-proj so a public project's README stays readable.
+const setTitle = () => { document.title = Privacy.on ? Privacy.label(NAME) : NAME; };
+setTitle();
+window.addEventListener('privacy', setTitle);
+Privacy.mark(document.getElementById('proj-name'), NAME).textContent = NAME;
+Privacy.mark(document.getElementById('hero-name'), NAME).textContent = NAME;
+['hero-summary', 'hero-showcase', 'readme-body', 'caps-body'].forEach(id => Privacy.mark(document.getElementById(id), NAME));
 
 // Project-specific CTAs. Hardcoded fallbacks for projects without a
 // project.yml; manifest links (pr.manifest.links) are merged in by load().
@@ -35,7 +40,7 @@ function renderProjectCTAs(manifestLinks) {
   }
   div.dataset.fp = fp;
   div.innerHTML = links.map(c =>
-    `<a href="${escapeHtml(c.href)}" class="action-btn ${c.primary ? 'primary' : ''}">${escapeHtml(c.label)}</a>`
+    `<a href="${escapeHtml(c.href)}" class="action-btn ${c.primary ? 'primary' : ''}">${Privacy.pv(c.label, NAME)}</a>`
   ).join('');
 }
 renderProjectCTAs();
@@ -101,6 +106,7 @@ async function load() {
     }
     if (!prResp.ok || !capsResp.ok) return;  // server hiccup; will retry on next poll
     pr = await prResp.json();
+    { const hp = document.getElementById('hero-path'); if (hp && pr && pr.path) hp.textContent = pr.path; }
     caps = await capsResp.json();
   } catch { return; }
 
@@ -127,7 +133,7 @@ async function load() {
   if (pr.remote_url) {
     const a = document.getElementById('repo-link');
     a.href = pr.remote_url.replace(/\.git$/, '');
-    a.textContent = pr.remote_url.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '') + ' ↗';
+    a.innerHTML = Privacy.pv(pr.remote_url.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '') + ' ↗', NAME);
   }
 
   // Stats grid
@@ -135,10 +141,10 @@ async function load() {
   const items = [
     { k: 'Commits', v: pr.commit_count },
     { k: 'Files', v: pr.file_count },
-    { k: 'Branch', v: pr.branch || '—' },
+    { k: 'Branch', v: pr.branch || '—', pv: true },  // branch names are prose: blurred like the index's not-pushed list
     { k: 'Last commit', v: pr.last_commit ? fmtAge(pr.last_commit.age_seconds) + ' ago' : '—' },
   ];
-  stats.innerHTML = items.map(i => `<div class="metric"><div class="k">${i.k}</div><div class="v">${escapeHtml(String(i.v))}</div></div>`).join('');
+  stats.innerHTML = items.map(i => `<div class="metric"><div class="k">${i.k}</div><div class="v">${i.pv ? Privacy.pv(String(i.v), NAME) : escapeHtml(String(i.v))}</div></div>`).join('');
 
   // Insights including goals progress
   const ins = document.getElementById('hero-progress');
@@ -156,7 +162,7 @@ async function load() {
             <span class="goal-numbers">${done}/${total} done · ${pct}%</span>
           </div>
           <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-          ${nextIns ? `<div class="next-up muted">Next up — ${escapeHtml(nextIns.value)}</div>` : ''}
+          ${nextIns ? `<div class="next-up muted">Next up — ${Privacy.pv(nextIns.value, NAME)}</div>` : ''}
         </div>`;
     }
   }
@@ -171,8 +177,12 @@ async function load() {
 
   // Capabilities body
   const body = document.getElementById('caps-body');
+  const capsPanel = document.getElementById('caps');
+  const capsTab = document.querySelector('a.page-tab[href="#caps"]');
+  if (capsPanel) capsPanel.hidden = !caps.markdown;
+  if (capsTab) capsTab.hidden = !caps.markdown;
   if (caps.markdown && window.marked) {
-    body.innerHTML = marked.parse(caps.markdown);
+    body.innerHTML = Shell.rebaseLinks(marked.parse(caps.markdown), NAME);
   } else if (caps.markdown) {
     body.innerHTML = `<pre>${escapeHtml(caps.markdown)}</pre>`;
   } else {
@@ -194,8 +204,16 @@ async function loadHeroShowcase() {
     if (box.dataset.fp === fp) return;
     box.dataset.fp = fp;
     box.hidden = false;
+    const ageDays = it.as_of ? (Date.now() - new Date(it.as_of).getTime()) / 86400000 : null;
     const label = it.kind === 'app' && it.up ? 'live'
+      : it.kind === 'app' && it.snapshot ? `screenshot from ${new Date(it.as_of).toLocaleDateString([], { month: 'short', day: 'numeric' })}${ageDays >= 2 ? `, ${Math.round(ageDays)} days old` : ''}`
       : it.as_of ? `as of ${new Date(it.as_of).toLocaleString()}` : '';
+    // the screenshot is what this page shows when the app is down: keep it
+    // current by retaking it (in the background) whenever the app is up and it is two weeks old
+    if (it.kind === 'app' && it.up && (!it.snapshot || ageDays >= 14) && !loadHeroShowcase.retook) {
+      loadHeroShowcase.retook = true;
+      fetch(`/api/showcase/capture?name=${encodeURIComponent(NAME)}`, { method: 'POST' }).catch(() => {});
+    }
     let body = '';
     if (it.kind === 'app' && it.up) {
       body = `<div class="sc-frame-wrap sc-hero"><iframe class="sc-frame" src="${escapeHtml(it.url)}" loading="lazy" title="live preview"></iframe><a class="sc-overlay" href="${escapeHtml(it.url)}" target="_blank" rel="noopener" aria-label="open app"></a></div>`;
@@ -208,7 +226,7 @@ async function loadHeroShowcase() {
     } else {
       body = `<div class="sc-md md" id="hero-showcase-md">loading…</div>`;
     }
-    box.innerHTML = `<div class="shelf-card-head"><span class="sc-meta muted small">latest product${it.title ? ' · ' + escapeHtml(it.title) : ''}${label ? ' · ' + escapeHtml(label) : ''}</span><a class="sc-open muted small" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">open ↗</a></div>${body}`;
+    box.innerHTML = `<div class="shelf-card-head"><span class="sc-meta muted small">latest product${it.title ? ' · ' + Privacy.pv(it.title, NAME) : ''}${label ? ' · ' + escapeHtml(label) : ''}</span><a class="sc-open muted small" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">open ↗</a></div>${body}`;
     if (it.kind === 'markdown-latest') {
       try {
         const t = await (await fetch(it.url)).text();
@@ -229,7 +247,7 @@ async function loadSignals() {
     const blocker = document.getElementById('signals-blocker');
     if (blocker) {
       blocker.hidden = !s.blocker;
-      if (s.blocker) blocker.innerHTML = `<span class="attn-dot"></span> blocked — ${escapeHtml(s.blocker)}`;
+      if (s.blocker) blocker.innerHTML = `<span class="attn-dot"></span> blocked — ${Privacy.px(s.blocker)}`;
     }
     const row = document.getElementById('signals-row');
     if (!row) return;
@@ -249,8 +267,8 @@ async function loadSignals() {
     }
     for (const c of s.checklists || []) {
       if (c.missing) continue;
-      const next = c.next_undone ? ` · next: ${c.next_undone}` : '';
-      chips.push(`<span class="sig-chip sig-check" title="${escapeHtml(c.next_undone || '')}">${escapeHtml(c.label)}: ${c.done}/${c.total}${escapeHtml(next.slice(0, 60))}</span>`);
+      const next = c.next_undone ? ` · next: ${Privacy.px(c.next_undone.slice(0, 52))}` : '';
+      chips.push(`<span class="sig-chip sig-check" title="${escapeHtml(c.next_undone || '')}">${escapeHtml(c.label)}: ${c.done}/${c.total}${next}</span>`);
     }
     row.hidden = chips.length === 0;
     row.innerHTML = chips.join('');
@@ -272,12 +290,12 @@ async function loadGoals() {
       .filter(s => s.items.length)
       .map(s => `
         <div class="goals-section">
-          <div class="goals-section-name">${escapeHtml(s.name)}</div>
+          <div class="goals-section-name">${Privacy.pv(s.name, NAME)}</div>
           <ul class="goals-list">
             ${s.items.map(i => `
               <li class="goal-item ${i.done ? 'done' : ''}" data-line="${i.line}">
                 <button class="goal-checkbox" data-line="${i.line}" aria-label="toggle">${i.done ? '✓' : ''}</button>
-                <span class="goal-label">${escapeHtml(i.label).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')}</span>
+                <span class="goal-label">${Privacy.pv(i.label, NAME).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')}</span>
               </li>
             `).join('')}
           </ul>
@@ -312,7 +330,7 @@ async function loadReadme() {
     panel.hidden = false;
     document.getElementById('readme-status').textContent = `${data.markdown.length.toLocaleString()} chars`;
     if (window.marked) {
-      document.getElementById('readme-body').innerHTML = marked.parse(data.markdown);
+      document.getElementById('readme-body').innerHTML = Shell.rebaseLinks(marked.parse(data.markdown), NAME);
     } else {
       document.getElementById('readme-body').innerHTML = `<pre>${escapeHtml(data.markdown)}</pre>`;
     }
@@ -1188,7 +1206,7 @@ async function loadReef() {
     const data = await r.json();
     const panel = document.getElementById('reef-panel');
     if (!panel) return;
-    if (!data.alive) { panel.hidden = true; return; }
+    if (!data.alive || !(data.runs || []).length) { panel.hidden = true; return; }
     panel.hidden = false;
     const layers = data.learnings_by_layer || {};
     const layerStr = ['bedrock', 'loam', 'topsoil'].filter(l => layers[l]).map(l => `${layers[l]} ${l}`).join(' · ');
@@ -1201,7 +1219,7 @@ async function loadReef() {
       const changes = run.changes ? ` · ${run.changes.filesChanged} files +${run.changes.insertions}/−${run.changes.deletions}` : '';
       return `<div class="reef-run">
         <span class="badge ${REEF_STATUS_CLS[run.status] || 'stale'}">${escapeHtml(run.status)}</span>
-        <span class="reef-run-prompt" title="${escapeHtml(run.prompt)}">${escapeHtml(run.prompt.slice(0, 90))}${run.prompt.length > 90 ? '…' : ''}</span>
+        <span class="reef-run-prompt" title="${escapeHtml(run.prompt)}">${Privacy.px(run.prompt.slice(0, 90))}${run.prompt.length > 90 ? '…' : ''}</span>
         <span class="muted small">${started.toLocaleString()}${cost}${changes}</span>
       </div>`;
     }).join('') : '<p class="muted small">No agent runs on this repo yet.</p>';
@@ -1237,3 +1255,92 @@ if (reefForm) {
 
 loadReef();
 setInterval(loadReef, 15000);
+
+
+// ---- Work with Claude: launchers, brief, session history --------------------
+(function () {
+  const status = document.getElementById('claude-status');
+  const say = (t, bad) => { if (!status) return; status.textContent = t; status.classList.toggle('bad', !!bad); if (t) setTimeout(() => { if (status.textContent === t) status.textContent = ''; }, 4000); };
+
+  async function openTerminal(claude) {
+    try {
+      const r = await fetch('/api/open_terminal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: NAME, claude }) });
+      if (!r.ok) throw new Error((await r.json()).detail || r.status);
+      say(claude ? 'Terminal opened, claude starting' : 'Terminal opened');
+    } catch (e) { say(`Could not open Terminal: ${e.message}`, true); }
+  }
+  async function copyBrief() {
+    try {
+      const r = await fetch(`/api/projects/${encodeURIComponent(NAME)}/brief`);
+      if (!r.ok) throw new Error(r.status);
+      const text = await r.text();
+      await navigator.clipboard.writeText(text);
+      say(`Brief copied (${text.split('\n').length} lines)`);
+    } catch (e) { say(`Could not copy: ${e.message}`, true); }
+  }
+  document.getElementById('btn-open-claude')?.addEventListener('click', () => openTerminal(true));
+  document.getElementById('btn-open-term')?.addEventListener('click', () => openTerminal(false));
+  document.getElementById('btn-copy-brief')?.addEventListener('click', copyBrief);
+
+  const fmtTok = n => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n);
+  const fmtWhen = iso => {
+    const d = new Date(iso), diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 3600) return `${Math.max(1, Math.round(diff / 60))}m ago`;
+    if (diff < 86400) return `${Math.round(diff / 3600)}h ago`;
+    if (diff < 7 * 86400) return `${Math.round(diff / 86400)}d ago`;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
+  async function loadSessions() {
+    const list = document.getElementById('claude-sessions');
+    if (!list) return;
+    try {
+      const r = await fetch(`/api/claude/sessions?project=${encodeURIComponent(NAME)}&limit=10`);
+      if (!r.ok) return;
+      const data = await r.json();
+      const ss = data.sessions || [];
+      document.getElementById('claude-meta').textContent = ss.length ? `${ss.length} recent session${ss.length === 1 ? '' : 's'}` : '';
+      if (!ss.length) { list.innerHTML = '<li class="cs-empty muted">No Claude Code sessions recorded in this project yet. Start one with the button above.</li>'; return; }
+      list.innerHTML = ss.map(s => `
+        <li class="cs-row">
+          <div class="cs-main">
+            <div class="cs-title">${Privacy.px(s.title)}</div>
+            <div class="cs-meta muted">${fmtWhen(s.ended)} · ${s.duration_min}m active · ${s.user_turns} turn${s.user_turns === 1 ? '' : 's'} · ${fmtTok(s.output_tokens)} out${s.branch && s.branch !== 'HEAD' ? ` · ${Privacy.px(s.branch)}` : ''}${s.projects.length > 1 ? ` · also ${s.projects.filter(p => p !== s.project).map(p => Privacy.pv(p, p)).join(', ')}` : ''}</div>
+          </div>
+          <button class="cs-resume" type="button" data-id="${s.id}" title="copy the command to resume this session in your terminal">resume ⧉</button>
+        </li>`).join('');
+      list.querySelectorAll('.cs-resume').forEach(b => b.addEventListener('click', async () => {
+        const cmd = `cd ${JSON.stringify(document.getElementById('hero-path')?.textContent || '')} && claude --resume ${b.dataset.id}`.replace(/^cd "" && /, '');
+        try { await navigator.clipboard.writeText(cmd); say('Resume command copied'); } catch { say('Could not copy', true); }
+      }));
+    } catch { /* silent */ }
+  }
+  loadSessions();
+  setInterval(loadSessions, 60000);
+
+  // Running here now: the same live session data as mission control
+  async function loadLive() {
+    const list = document.getElementById('claude-live');
+    if (!list) return;
+    try {
+      const r = await fetch('/api/agents');
+      if (!r.ok) return;
+      const here = ((await r.json()).agents || []).filter(a => a.project === NAME && a.kind !== 'headless');
+      list.hidden = !here.length;
+      const state = a => a.state === 'blocked' ? 'waiting on you' : a.your_turn ? 'your turn' : a.state;
+      list.innerHTML = here.map(a => `
+        <li class="cs-row cs-live">
+          <div class="cs-main">
+            <div class="cs-title">${Privacy.px(a.title || a.name || a.id)}</div>
+            <div class="cs-meta muted">${escapeHtml(state(a))} · ${fmtWhen(a.since)} · ${a.kind}${a.needs ? ` · ${Privacy.px(a.needs)}` : ''}</div>
+          </div>
+          ${a.can_attach ? `<button class="cs-resume" type="button" data-attach="${escapeHtml(a.id)}" title="open this background session in Terminal">attach</button>` : ''}
+        </li>`).join('');
+      list.querySelectorAll('[data-attach]').forEach(b => b.addEventListener('click', async () => {
+        try { const rr = await fetch(`/api/agents/${encodeURIComponent(b.dataset.attach)}/attach`, { method: 'POST' }); say(rr.ok ? 'Opened in Terminal' : 'Could not attach', !rr.ok); } catch { say('Could not attach', true); }
+      }));
+    } catch { /* silent */ }
+  }
+  loadLive();
+  setInterval(() => { if (!document.hidden) loadLive(); }, 8000);
+})();

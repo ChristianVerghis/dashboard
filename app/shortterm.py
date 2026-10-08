@@ -58,15 +58,28 @@ def session_status() -> dict:
     if _session_instance is None:
         return {"running": False, "last_error": _last_session_error}
     s = _session_instance
+    meta = getattr(s, "meta", {}) or {}
     return {
         "running": _session_task is not None and not _session_task.done(),
         "session_id": s.session_id,
         "symbols": s.symbols,
         "n_students": len(s.students),
+        "n_strategies": meta.get("n_strategies"),
         "bar_count": s.bar_count,
         "prediction_count": s.prediction_count,
         "resolution_count": s.resolution_count,
         "n_open_predictions": len(s.open_predictions),
+        "provider": meta.get("provider") or getattr(s, "provider_name", None),
+        "is_synthetic": meta.get("is_synthetic"),
+        "scenario": meta.get("scenario"),
+        "seed": meta.get("seed"),
+        "universe": meta.get("universe"),
+        "slippage_bps": meta.get("slippage_bps"),
+        "persist_lifetime": meta.get("persist_lifetime"),
+        "replay_start": meta.get("replay_start"),
+        "replay_end": meta.get("replay_end"),
+        "first_bar_ts": getattr(s, "first_bar_ts", None),
+        "last_bar_ts": getattr(s, "last_bar_ts", None),
         "last_error": _last_session_error,
     }
 
@@ -75,12 +88,19 @@ async def start_session(
     symbols: list[str] | None = None,
     provider: str = "mock",
     scenario: str = "random_walk",
+    universe: str | None = None,
+    slippage_bps: float = 0.0,
+    replay_speed: float | None = None,
+    seed: int | None = None,
 ) -> dict:
     """Spawn the LiveSession as an asyncio task. Idempotent — if already
     running, returns the current status.
 
     scenario: only used when provider='mock'. Picks the synthetic regime
     (random_walk, trending_up, volatile_revert, breakout_event, choppy).
+    seed: pins the mock price path; default is a fresh path per session.
+    slippage_bps: stop-fill slippage applied by the paper book.
+    replay_speed: yfinance replay compression (60 = a minute per second).
     """
     global _session_instance, _session_task
     if _session_task is not None and not _session_task.done():
@@ -90,6 +110,15 @@ async def start_session(
     import os
     os.environ["PROVIDER"] = provider
     os.environ["MOCK_SCENARIO"] = scenario
+    os.environ["STOP_SLIPPAGE_BPS"] = str(max(0.0, float(slippage_bps or 0)))
+    if seed is not None:
+        os.environ["MOCK_SEED"] = str(int(seed))
+    else:
+        os.environ.pop("MOCK_SEED", None)
+    if replay_speed is not None:
+        os.environ["REPLAY_SPEED"] = str(replay_speed)
+    else:
+        os.environ.pop("REPLAY_SPEED", None)
     # Import here — first-time imports trigger sys.path setup above
     live_session_mod = importlib.import_module("live_session")
     importlib.reload(live_session_mod)
@@ -98,7 +127,7 @@ async def start_session(
         import yaml
         cfg = yaml.safe_load((SHORTTERM_ROOT / "config" / "techniques.yml").read_text())
         symbols = cfg["universe"]["symbols"]
-    session = Session(symbols=symbols)
+    session = Session(symbols=symbols, universe=universe)
     session.load_students()
     # Transfer websocket subscribers from the prior (now-stopped) session
     # so live UI clients don't go silent across stop+start cycles. Without
@@ -138,6 +167,13 @@ def stop_session() -> dict:
     if _session_task is None or _session_task.done():
         return {"ok": True, "was_running": False}
     _session_task.cancel()
+    if _session_instance is not None and hasattr(_session_instance, "write_meta"):
+        from datetime import datetime, timezone
+        try:
+            _session_instance.write_meta(
+                None, ended_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        except Exception:
+            pass
     return {"ok": True, "was_running": True}
 
 
@@ -182,15 +218,26 @@ def student_detail(name: str) -> dict | None:
         except OSError:
             pass
     open_positions = []
+    session_score = None
+    session_recent: list[dict] = []
     if _session_instance is not None:
         open_positions = [
             e["pred"] for e in _session_instance.open_predictions
             if e["pred"].get("student") == name
         ]
+        stu = _session_instance.students_by_name.get(name)
+        if stu is not None:
+            session_score = stu.score
+            recent = getattr(_session_instance, "recent_by_student", {}).get(name)
+            session_recent = list(recent) if recent else []
     return {
         "name": name,
-        "score": score,
-        "recent_predictions": predictions,
+        # The session score is what the grid colours by; lifetime is only
+        # written by sessions that persist (live Alpaca by default).
+        "score": session_score or score,
+        "session_score": session_score,
+        "lifetime_score": score or None,
+        "recent_predictions": session_recent or predictions,
         "open_positions": open_positions,
     }
 
@@ -444,10 +491,53 @@ def list_sessions(limit: int = 20) -> dict:
                 "resolution_count": _count_lines(resos),
             }
             _session_counts_cache[d.name] = (max_mtime, counts)
-        out.append({"session_id": d.name, **counts})
+        out.append({"session_id": d.name, **counts, **_session_label(d)})
         if len(out) >= limit:
             break
     return {"sessions": out}
+
+
+_label_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _session_label(d: Path) -> dict:
+    """What kind of session this was — from meta.json, or inferred from the
+    first bar for sessions recorded before meta.json existed."""
+    mp = d / "meta.json"
+    try:
+        mt = mp.stat().st_mtime if mp.exists() else (d / "bars.jsonl").stat().st_mtime
+    except OSError:
+        mt = 0.0
+    hit = _label_cache.get(d.name)
+    if hit and hit[0] == mt:
+        return hit[1]
+    meta: dict = {}
+    if mp.exists():
+        try:
+            meta = json.loads(mp.read_text())
+        except (OSError, json.JSONDecodeError):
+            meta = {}
+    if "is_synthetic" not in meta:
+        try:
+            with open(d / "bars.jsonl") as f:
+                first = json.loads(f.readline() or "{}")
+            meta["is_synthetic"] = bool(first.get("is_synthetic"))
+            meta["provider"] = "mock" if meta["is_synthetic"] else None
+            meta.setdefault("symbols", [first.get("symbol")] if first.get("symbol") else [])
+        except (OSError, json.JSONDecodeError):
+            pass
+    label = {
+        "provider": meta.get("provider"),
+        "is_synthetic": meta.get("is_synthetic"),
+        "scenario": meta.get("scenario"),
+        "universe": meta.get("universe"),
+        "symbols": meta.get("symbols"),
+        "replay_start": meta.get("replay_start"),
+        "replay_end": meta.get("replay_end"),
+        "started_at": meta.get("started_at"),
+    }
+    _label_cache[d.name] = (mt, label)
+    return label
 
 
 def latest_grid_state() -> dict:
@@ -476,3 +566,204 @@ def latest_grid_state() -> dict:
             "open_positions": open_by_student.get(s.name, 0),
         })
     return {"students": students}
+
+
+# ---------------------------------------------------------------- insights
+#
+# "Which techniques are in play, which are working, which bets paid and why"
+# — computed by classroom/shortterm/scripts/session_analytics.py so the logic
+# lives (and is tested) next to the engine. The dashboard only adds caching
+# and the live roster.
+
+_insights_cache: dict[str, tuple[tuple, float, dict]] = {}
+_INSIGHTS_TTL = 2.0
+
+
+def _analytics():
+    _ensure_path()
+    return importlib.import_module("session_analytics")
+
+
+def _live_roster(session) -> dict[str, dict]:
+    """{technique: {students, strategies, suspended}} for the running cohort."""
+    roster: dict[str, dict] = {}
+    strategies: dict[str, set] = {}
+    for stu in session.students:
+        r = roster.setdefault(stu.technique, {"students": 0, "strategies": 0, "suspended": 0})
+        r["students"] += 1
+        strategies.setdefault(stu.technique, set()).add(json.dumps(stu.params, sort_keys=True))
+        try:
+            if stu.position_size_scale() == 0.0:
+                r["suspended"] += 1
+        except Exception:
+            pass
+    for t, ss in strategies.items():
+        roster[t]["strategies"] = len(ss)
+    return roster
+
+
+def live_insights(top_n: int = 12) -> dict:
+    """Insights for the running (or last-run) in-process session."""
+    s = _session_instance
+    if s is None:
+        return {"running": False, "session": None}
+    key = (s.session_id, s.prediction_count, s.resolution_count, top_n)
+    import time as _time
+    now = _time.monotonic()
+    hit = _insights_cache.get("live")
+    if hit and hit[0] == key and now - hit[1] < 30:
+        return hit[2]
+    if hit and hit[0][0] == s.session_id and now - hit[1] < _INSIGHTS_TTL:
+        return hit[2]
+    sa = _analytics()
+    meta = dict(getattr(s, "meta", {}) or {})
+    meta.update({
+        "session_id": s.session_id,
+        "symbols": s.symbols,
+        "first_bar_ts": s.first_bar_ts,
+        "last_bar_ts": s.last_bar_ts,
+        "bar_count": s.bar_count,
+        "running": _session_task is not None and not _session_task.done(),
+    })
+    rep = sa.insights_from_bets(meta, s.book.bets(), n_predictions=s.book.n_predictions,
+                                roster=_live_roster(s), top_n=top_n)
+    rep["running"] = meta["running"]
+    _insights_cache["live"] = (key, now, rep)
+    return rep
+
+
+# Past sessions parsed into a BetBook, kept for the two most recently viewed
+# sessions: a replay is ~100k student predictions, and every bet card on the
+# page asks for its own price path.
+_book_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _session_mtime(sdir: Path) -> float:
+    try:
+        return max((p.stat().st_mtime for p in sdir.iterdir() if p.is_file()), default=0.0)
+    except OSError:
+        return 0.0
+
+
+def _past_book(session_id: str) -> dict | None:
+    """{meta, bets, by_id, n_predictions, cohort} for a session on disk."""
+    if not session_id or "/" in session_id or ".." in session_id:
+        return None
+    sdir = SHORTTERM_ROOT / "sessions" / session_id
+    if not sdir.is_dir():
+        return None
+    mt = _session_mtime(sdir)
+    hit = _book_cache.get(session_id)
+    if hit and hit[0] == mt:
+        return hit[1]
+    loaded = _analytics().load_session_book(session_id)
+    if loaded is None:
+        return None
+    meta, book, cohort = loaded
+    bets = book.bets()
+    entry = {"meta": meta, "bets": bets, "by_id": {b["bet_id"]: b for b in bets},
+             "n_predictions": book.n_predictions, "cohort": cohort}
+    _book_cache[session_id] = (mt, entry)
+    while len(_book_cache) > 2:
+        _book_cache.pop(next(iter(_book_cache)))
+    return entry
+
+
+def session_insights(session_id: str, top_n: int = 12) -> dict | None:
+    """Insights for a past session on disk (cached until its files change)."""
+    if not session_id or "/" in session_id or ".." in session_id:
+        return None
+    if _session_instance is not None and session_id == _session_instance.session_id:
+        return live_insights(top_n=top_n)
+    sdir = SHORTTERM_ROOT / "sessions" / session_id
+    if not sdir.is_dir():
+        return None
+    mt = _session_mtime(sdir)
+    ck = f"past:{session_id}:{top_n}"
+    hit = _insights_cache.get(ck)
+    if hit and hit[0] == (mt,):
+        return hit[2]
+    entry = _past_book(session_id)
+    if entry is None:
+        return None
+    rep = _analytics().insights_from_book(entry["meta"], entry["bets"], entry["n_predictions"],
+                                          entry["cohort"], top_n=top_n)
+    rep["running"] = False
+    _insights_cache[ck] = ((mt,), 0.0, rep)
+    if len(_insights_cache) > 16:
+        _insights_cache.pop(next(k for k in _insights_cache if k != "live"))
+    return rep
+
+
+_bars_cache: dict[tuple, tuple[float, list]] = {}
+
+
+def bet_detail(session_id: str, bet: str) -> dict | None:
+    """One bet with its explanation and the price path around it."""
+    if not bet or not bet.isalnum():
+        return None
+    sa = _analytics()
+    s = _session_instance
+    if s is not None and (not session_id or session_id == s.session_id):
+        b = s.book.get(bet)
+        if b is None:
+            return None
+        rep = live_insights()
+        bars = list(s.bar_history.get(b["symbol"], []))
+        session_id = s.session_id
+    else:
+        entry = _past_book(session_id)
+        if entry is None:
+            return None
+        b = entry["by_id"].get(bet)
+        if b is None:
+            return None
+        rep = session_insights(session_id) or {}
+        sdir = SHORTTERM_ROOT / "sessions" / session_id
+        try:
+            mt = (sdir / "bars.jsonl").stat().st_mtime
+        except OSError:
+            mt = 0.0
+        ck = (session_id, b["symbol"])
+        hit = _bars_cache.get(ck)
+        if hit and hit[0] == mt:
+            bars = hit[1]
+        else:
+            bars = sa.load_bars(session_id, b["symbol"])
+            _bars_cache[ck] = (mt, bars)
+            if len(_bars_cache) > 24:
+                _bars_cache.pop(next(iter(_bars_cache)))
+    tech = next((t for t in rep.get("techniques", []) if t["technique"] == b["technique"]), None)
+    return {
+        "session_id": session_id,
+        "bet": {**b, "why": sa.explain(b, tech)},
+        "technique": tech,
+        "path": sa.bet_path(bars, b),
+    }
+
+
+# ---------------------------------------------------------------- weekly re-test
+
+def retest_view() -> dict:
+    """Track record from classroom/shortterm/retest/summary.json (written by
+    weekly_retest.py), plus which weekly sessions still have their payload on
+    disk so the page can link a week to its session view."""
+    path = SHORTTERM_ROOT / "retest" / "summary.json"
+    if not path.exists():
+        return {"missing": True}
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {"missing": True}
+    sessions = SHORTTERM_ROOT / "sessions"
+    available = set()
+    for pair in data.get("pairs", []):
+        for w in pair.get("weeks", []):
+            sid = w.get("session_id")
+            if sid and sid not in available and (sessions / sid / "predictions.jsonl").exists():
+                available.add(sid)
+    data["sessions_available"] = sorted(available)
+    log_dir = CLASSROOM_ROOT / "data" / "cron"
+    logs = sorted(log_dir.glob("weekly-retest-*.log")) if log_dir.exists() else []
+    data["last_log"] = logs[-1].name if logs else None
+    return data

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import threading
 import time
 from collections import deque
 from pathlib import Path
@@ -18,6 +19,7 @@ from typing import AsyncIterator
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from . import ignore
 from . import projects as proj_mod
 from . import activity as act_mod
 
@@ -100,46 +102,75 @@ async def fresh_payload() -> dict:
         return payload
 
 
-class _Handler(FileSystemEventHandler):
-    """Coalesce file events into one notification every 500ms."""
-    def __init__(self) -> None:
-        self._last_emit = 0.0
-        self._pending: set[str] = set()
+class _Debouncer:
+    """Collect items and flush them once no new item has arrived for `quiet`
+    seconds, or `max_wait` seconds after the first one during a storm."""
 
-    # Anything under these path segments is ignored by the watcher. Without
-    # node_modules + .next here, `pnpm dev` or any TS rebuild fires thousands
-    # of file events into the SSE stream and the dashboard cards flash
-    # constantly.
-    _IGNORE_SEGMENTS = (
-        ".git/", ".venv/", "venv/", "__pycache__/", ".DS_Store",
-        "node_modules/", ".next/", ".obsidian/", ".pytest_cache/",
-        "dist/", "build/", ".turbo/", ".vercel/",
-    )
+    def __init__(self, quiet: float, max_wait: float, flush) -> None:
+        self.quiet, self.max_wait, self._flush = quiet, max_wait, flush
+        self._pending: set[str] = set()
+        self._first: float | None = None
+        self._timer: threading.Timer | None = None
+        self._lock = threading.Lock()
+
+    def add(self, item: str) -> None:
+        now = time.time()
+        with self._lock:
+            self._pending.add(item)
+            if self._first is None:
+                self._first = now
+            if self._timer is not None:
+                self._timer.cancel()
+            delay = min(self.quiet, max(0.0, self._first + self.max_wait - now))
+            self._timer = threading.Timer(delay, self._fire)
+            self._timer.daemon = True
+            self._timer.start()
+
+    def _fire(self) -> None:
+        with self._lock:
+            items = sorted(self._pending)
+            self._pending.clear()
+            self._first = None
+            self._timer = None
+        if items:
+            self._flush(items)
+
+
+def _mark_projects_dirty(paths: list[str]) -> None:
+    for path in paths:
+        proj_mod.mark_dirty(path)
+
+
+def _post_rescanned(keys: list[str]) -> None:
+    """A background rescan changed the cached scan: the next payload is
+    different, so tell every open tab."""
+    global _dirty_at
+    _dirty_at = time.time()
+    bus.post({"type": "filechange", "ts": time.time(),
+              "sample": [Path(k).name for k in keys][:5]})
+
+
+# Rescans land one project at a time; group them into one push per moment.
+_rescans = _Debouncer(0.4, 2.0, _post_rescanned)
+proj_mod.add_listener(_rescans.add)
+
+
+class _Handler(FileSystemEventHandler):
+    """File events only mark projects dirty (debounced per quiet window); the
+    scanner rescans them on its own pool and its listener pushes the result.
+    Which paths count is decided by app/ignore.py, the same policy the
+    scanner's file stats use."""
+
+    def __init__(self, root: str) -> None:
+        self._root = root
+        self._events = _Debouncer(1.5, 5.0, _mark_projects_dirty)
 
     def _record(self, path: str) -> None:
-        if any(seg in path for seg in self._IGNORE_SEGMENTS):
+        if ignore.watcher_should_ignore(path, self._root) or "/.#" in path:
             return
-        # Also skip transient editor swap files
-        if path.endswith((".swp", ".swo", "~", ".DS_Store")) or "/.#" in path:
-            return
-        # Real file change → invalidate the scan cache so fresh polls see new state.
-        proj_mod.invalidate_caches()
-        global _dirty_at
-        _dirty_at = time.time()
-        self._pending.add(path)
-        now = time.time()
-        if now - self._last_emit < 1.0:  # bumped from 500ms — reduces churn during edit storms
-            return
-        self._last_emit = now
-        if not self._pending:
-            return
-        sample = sorted(self._pending)[:5]
-        self._pending.clear()
-        bus.post({
-            "type": "filechange",
-            "ts": now,
-            "sample": sample,
-        })
+        key = proj_mod.project_key_for(path)
+        if key:
+            self._events.add(key)
 
     def on_modified(self, event):
         if not event.is_directory:
@@ -162,8 +193,8 @@ def start_observer() -> None:
     if _observer is not None:
         return
     _observer = Observer()
-    handler = _Handler()
     root = proj_mod.PROJECTS_ROOT
+    handler = _Handler(str(root.resolve()) if root.exists() else str(root))
     if root.exists():
         _observer.schedule(handler, str(root), recursive=True)
     _observer.start()

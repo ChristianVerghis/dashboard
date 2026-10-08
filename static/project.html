@@ -1,19 +1,20 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>· capabilities</title>
+  <title>Project</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=20260915171450" />
+  <link rel="stylesheet" href="/static/tokens.css?v=20261005b" />
+  <script src="/static/privacy.js?v=20261005a"></script>
+  <script src="/static/shell.js?v=20261005b"></script>
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <a href="/" class="back-link" title="back to dashboard">←</a>
       <span class="brand-text" id="proj-name">…</span>
-      <span class="muted">·</span>
-      <span class="muted">capabilities</span>
     </div>
     <div class="meta">
       <span class="muted small" id="proj-meta"></span>
@@ -27,6 +28,7 @@
         <span class="badge" id="hero-momentum">…</span>
       </div>
       <p id="hero-summary" class="muted"></p>
+      <span id="hero-path" hidden></span>
       <div id="hero-showcase" class="hero-showcase" hidden></div>
       <div id="signals-blocker" class="signals-blocker" hidden></div>
       <div id="signals-row" class="signals-row" hidden></div>
@@ -35,12 +37,28 @@
     </section>
 
     <nav id="page-tabs" class="page-tabs">
+      <a href="#claude-panel" class="page-tab">Claude</a>
       <a href="#notes-panel" class="page-tab">Notes</a>
       <a href="#goals-panel" class="page-tab">Goals</a>
       <a href="#diff-panel" class="page-tab">Pending</a>
       <a href="#readme-panel" class="page-tab">Readme</a>
       <a href="#caps" class="page-tab">Capabilities</a>
     </nav>
+
+    <section id="claude-panel" class="panel">
+      <div class="panel-head">
+        <h2>Work with Claude</h2>
+        <span class="muted small" id="claude-meta"></span>
+      </div>
+      <div class="claude-actions">
+        <button class="action-btn primary" id="btn-open-claude" type="button" title="open Terminal.app here and start claude">✦ Open with Claude</button>
+        <button class="action-btn" id="btn-open-term" type="button" title="open Terminal.app in this folder">Open in Terminal</button>
+        <button class="action-btn" id="btn-copy-brief" type="button" title="copy a short project brief to paste as your first message">Copy brief</button>
+        <span class="muted small" id="claude-status"></span>
+      </div>
+      <ul id="claude-live" class="claude-sessions claude-live" hidden></ul>
+      <ul id="claude-sessions" class="claude-sessions"></ul>
+    </section>
 
     <section id="manifest-actions" class="panel" hidden>
       <div class="panel-head">
@@ -174,7 +192,7 @@
         <h2>Uncommitted changes</h2>
         <span class="muted small" id="diff-summary"></span>
       </div>
-      <div id="diff-body" class="diff-body"></div>
+      <div id="diff-body" class="diff-body pv-block"></div>
     </section>
 
     <section id="notes-panel" class="panel">
@@ -182,8 +200,8 @@
         <h2>Notes</h2>
         <span class="muted small" id="notes-status">scratchpad · markdown · saves on blur</span>
       </div>
-      <textarea id="notes-textarea" placeholder="Quick thoughts about this project — markdown supported. Saves automatically when you click outside the box."></textarea>
-      <div id="notes-rendered" class="md notes-rendered"></div>
+      <textarea id="notes-textarea" class="pv" placeholder="Quick thoughts about this project — markdown supported. Saves automatically when you click outside the box."></textarea>
+      <div id="notes-rendered" class="md notes-rendered pv-block"></div>
     </section>
 
     <section id="goals-panel" class="panel" hidden>
@@ -268,11 +286,11 @@
         <h3 id="briefing-modal-title">Daily briefing</h3>
         <button id="briefing-modal-close" aria-label="close">×</button>
       </div>
-      <div id="briefing-modal-body" class="briefing-modal-body"></div>
+      <div id="briefing-modal-body" class="briefing-modal-body pv-block"></div>
     </div>
   </div>
 
   <script src="/static/marked.min.js"></script>
-  <script src="/static/project.js"></script>
+  <script src="/static/project.js?v=20260915171450"></script>
 </body>
 </html>

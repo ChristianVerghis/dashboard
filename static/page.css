@@ -1,0 +1,49 @@
+/* Inner pages built on the tokens (routines, and the pages that follow):
+   a page header, sections separated by space and a hairline, aligned tables,
+   and notes. Color stays reserved for things that need you. */
+
+.page { max-width: 1180px; margin: 0 auto; padding: var(--s-6) var(--s-6) var(--s-7); }
+.page-head { margin: var(--s-2) 0 var(--s-6); }
+.page-head h1 { margin: 0; font-size: var(--fs-22); line-height: var(--lh-22); font-weight: 500; letter-spacing: -0.016em; }
+.page-head p { margin: var(--s-2) 0 0; max-width: 72ch; color: var(--ink-3); }
+.page-head .when { color: var(--ink-3); }
+
+.section { margin: 0 0 var(--s-7); }
+.section-head { display: flex; align-items: baseline; gap: var(--s-3); padding: 0 var(--s-2) 6px; margin-bottom: var(--s-1); border-bottom: 1px solid var(--line); }
+.section-head h2 { margin: 0; font-size: var(--fs-13); line-height: var(--lh-13); font-weight: 600; }
+.section-head .aside { margin-left: auto; color: var(--ink-3); font-size: var(--fs-12); }
+
+.note {
+  display: flex; gap: var(--s-3); align-items: flex-start;
+  margin: 0 0 var(--s-5); padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line); border-left: 2px solid var(--attn); border-radius: 0 var(--r-2) var(--r-2) 0;
+  background: var(--attn-bg); color: var(--ink);
+}
+.note.quiet { border-left-color: var(--line-strong); background: transparent; color: var(--ink-2); }
+.note p { margin: 0; }
+.note .mark { margin-top: 2px; }
+
+.table { width: 100%; border-collapse: collapse; }
+.table th { text-align: left; font-weight: 500; color: var(--ink-3); font-size: var(--fs-12); padding: 6px var(--s-2); border-bottom: 1px solid var(--line); }
+.table td { padding: 8px var(--s-2); border-bottom: 1px solid var(--line); vertical-align: top; }
+.table tr:last-child td { border-bottom: 0; }
+.table .lead { width: 20px; padding-right: 0; }
+.table .name { color: var(--ink); white-space: nowrap; }
+.table .dim { color: var(--ink-3); }
+.table .num { text-align: right; white-space: nowrap; color: var(--ink-2); }
+.table .nowrap { white-space: nowrap; }
+.table .act { text-align: right; white-space: nowrap; width: 1%; }
+.table .sub { display: block; color: var(--ink-3); font-size: var(--fs-12); line-height: var(--lh-12); margin-top: 2px; }
+.table tr.off td { color: var(--ink-3); }
+.table .btn { height: 24px; padding: 0 var(--s-2); font-size: var(--fs-12); }
+
+.group-row td { padding-top: var(--s-4); }
+.routine-list { margin: 4px 0 0; padding: 0; list-style: none; }
+.routine-list li { display: flex; gap: var(--s-3); color: var(--ink-3); font-size: var(--fs-12); line-height: 18px; }
+.routine-list li .r-name { color: var(--ink-2); }
+.routine-list li.off .r-name { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--ink-4); }
+
+@media (max-width: 760px) {
+  .page { padding: var(--s-5) var(--s-4) var(--s-7); }
+  .table .hide-sm { display: none; }
+}

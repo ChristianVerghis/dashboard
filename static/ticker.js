@@ -1,6 +1,9 @@
 const SYMBOL = decodeURIComponent(window.location.pathname.replace(/^\/ticker\//, '')).toUpperCase();
-document.title = `${SYMBOL} · ticker`;
-document.getElementById('ticker-symbol').textContent = SYMBOL;
+// the symbol is a watchlist entry (personal): neutral tab title in private mode, blurred in the top bar
+const setTitle = () => { document.title = Privacy.on ? 'ticker · dashboard' : `${SYMBOL} · ticker`; };
+setTitle();
+window.addEventListener('privacy', setTitle);
+Privacy.mark(document.getElementById('ticker-symbol')).textContent = SYMBOL;
 
 let currentDays = parseInt(document.getElementById('window-select').value, 10);
 let chartType = 'candle';
@@ -138,7 +141,7 @@ function computeRSI(closes, window = 14) {
 function renderStats(data) {
   const s = data.summary;
   if (!s.last_close) {
-    document.getElementById('ticker-stats').innerHTML = `<p class="muted">No price data for ${SYMBOL}. Run <code>python scripts/ingest_prices.py ${SYMBOL}</code>.</p>`;
+    document.getElementById('ticker-stats').innerHTML = `<p class="muted">No price data for ${Privacy.px(SYMBOL)}. Run <code>python scripts/ingest_prices.py ${Privacy.px(SYMBOL)}</code>.</p>`;
     return;
   }
   const changeClass = s.pct_change >= 0 ? 'up' : 'down';
@@ -448,7 +451,7 @@ function renderNews(news) {
   }
   ul.innerHTML = news.map(n => `
     <li>
-      <a href="${escapeHtml(n.url || '#')}" target="_blank" rel="noopener" class="news-title">${escapeHtml(n.title || '')}</a>
+      <a href="${escapeHtml(n.url || '#')}" target="_blank" rel="noopener" class="news-title">${Privacy.px(n.title || '')}</a>
       <div class="muted small">${escapeHtml(n.feed || '')} · ${fmtAge(n.published || n.ingested_at)}</div>
     </li>`).join('');
 }
@@ -456,16 +459,16 @@ function renderNews(news) {
 function renderPredictions(preds) {
   const target = document.getElementById('ticker-predictions');
   if (!preds.length) {
-    target.innerHTML = `<p class="muted small">No predictions logged on ${SYMBOL} yet. <a href="/project/markets">Log one →</a></p>`;
+    target.innerHTML = `<p class="muted small">No predictions logged on ${Privacy.px(SYMBOL)} yet. <a href="/project/markets">Log one →</a></p>`;
     return;
   }
   target.innerHTML = `<ul class="ticker-pred-list">${preds.map(p => `
     <li>
       <div class="p-head">
         <b>${escapeHtml(p.direction || '')}</b> · ${p.confidence}% · horizon ${escapeHtml(p.time_horizon || '')}
-        <span class="muted small">${escapeHtml(p.id)}</span>
+        <span class="muted small">${Privacy.px(p.id)}</span>
       </div>
-      <p class="p-reason">${escapeHtml((p.reasoning || '').slice(0, 200))}${p.reasoning && p.reasoning.length > 200 ? '…' : ''}</p>
+      <p class="p-reason">${Privacy.px((p.reasoning || '').slice(0, 200))}${p.reasoning && p.reasoning.length > 200 ? '…' : ''}</p>
     </li>
   `).join('')}</ul>`;
 }

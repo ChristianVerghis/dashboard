@@ -1,3 +1,9 @@
+// The page belongs to the markets project: neutral tab title while private mode is on; the
+// breadcrumb link (predictions.html) and the empty-state copy below carry pv + data-proj.
+const setTitle = () => { document.title = `predictions · ${Privacy.label('markets')}`; };
+setTitle();
+window.addEventListener('privacy', setTitle);
+
 function escapeHtml(s) {
   if (s == null) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -62,7 +68,7 @@ function renderGrid(preds) {
     grid.innerHTML = `
       <div class="panel" style="padding: 36px; text-align: center;">
         <p class="muted">No predictions logged yet.</p>
-        <p class="muted small">Open <a href="/project/markets">markets</a> and click <code>+ Log prediction</code>, or run <code>python scripts/log_prediction.py</code> in the markets folder.</p>
+        <p class="muted small">Open <a href="/project/markets">${Privacy.pv('markets', 'markets')}</a> and click <code>+ Log prediction</code>, or run <code>python scripts/log_prediction.py</code> in the ${Privacy.pv('markets', 'markets')} folder.</p>
       </div>`;
     return;
   }
@@ -70,7 +76,7 @@ function renderGrid(preds) {
     <div class="pred-card">
       <div class="pred-head">
         <div class="pred-title">
-          <span class="pred-ticker">${escapeHtml(p.ticker)}</span>
+          <span class="pred-ticker">${Privacy.px(p.ticker)}</span>
           <span class="muted small">${escapeHtml(p.direction)}</span>
         </div>
         ${statusBadge(p)}
@@ -79,13 +85,13 @@ function renderGrid(preds) {
         <span><b>${escapeHtml(String(p.confidence))}%</b> · horizon ${escapeHtml(p.time_horizon)}</span>
         <span class="muted small">${fmtAge(p.created_at)}</span>
       </div>
-      <p class="pred-reasoning">${escapeHtml((p.reasoning || '').slice(0, 240))}${(p.reasoning || '').length > 240 ? '…' : ''}</p>
+      <p class="pred-reasoning">${Privacy.px((p.reasoning || '').slice(0, 240))}${(p.reasoning || '').length > 240 ? '…' : ''}</p>
       ${(p.invalidation_conditions || []).length ? `
         <details class="pred-inval">
           <summary>Invalidation conditions (${p.invalidation_conditions.length})</summary>
-          <ul>${p.invalidation_conditions.map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul>
+          <ul>${p.invalidation_conditions.map(c => `<li>${Privacy.px(c)}</li>`).join('')}</ul>
         </details>` : ''}
-      <div class="pred-id muted small">${escapeHtml(p.id)}</div>
+      <div class="pred-id muted small">${Privacy.px(p.id)}</div>
     </div>
   `).join('');
 }

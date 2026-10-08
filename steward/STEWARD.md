@@ -26,13 +26,15 @@ For every project:
 - If a project has a `blocker`, note how long it has been blocked (the blocker text usually carries a date) — do not try to resolve it.
 - If freshness probes are red on a project whose `status` is `active` but nothing has been committed in 45+ days, flag it in the digest as "status mismatch — consider dormant". Do not edit the manifest yourself.
 
+Then read `curl -s localhost:8765/api/freshness`: the dashboard's own view of whether its data is current (the nightly digest, each repo's last fetch, every launchd job's last run against its schedule, each cloud routine's output against its usual gap, screenshots, external activity). List every check in state `warn` or `fail` under "Needs the owner" with its `detail` line. Do not act on them beyond the fetches above.
+
 ## Step 3 — Advance one project (35 min)
 
 Pick ONE project meeting all of: `status: active` or `incubating`; verdict not `complete`; no `blocker`; has `GOALS.md` with unchecked `- [ ]` items; not on the do-not-touch list above. Rotate: prefer the eligible project least recently worked in past digests; break ties toward the one with the most red/amber signals.
 
 Then:
 1. `git switch -c nightly/<STEWARD_DATE>` from main (if the tree is dirty, stash-free: skip this project and pick the next one; report the dirty state).
-2. Read `GOALS.md`, `README.md`, `build_log.md`, and `project.yml`. Choose the top unchecked goal that is achievable offline in ~30 min without new credentials or paid services. If the top one isn't, take the next.
+2. Read `GOALS.md`, `README.md`, `build_log.md`, and `project.yml`. Choose the top unchecked goal that is achievable offline in ~30 min without new credentials or paid services. If the top one isn't, take the next. Skip goals marked `(owner)`: the owner is building those interactively. Skip any goal that an unmerged `nightly/*` branch in that project already attempts (compare its commit subjects; same intent counts even if worded differently): redoing it only adds a duplicate branch, because the tick lands on main only when the owner merges. List the waiting branch under "Needs the owner" and take the next goal.
 3. Implement it. Run the project's test action from `project.yml` `actions:` if one exists (names like `test`, `test-*`, `smoke`). Do not tick the goal unless it fully works and tests pass.
 4. Commit with a clear message prefixed `[nightly]`. Append a dated entry to `build_log.md` in the same commit. If the project has a remote, `git push -u origin nightly/<STEWARD_DATE>`.
 5. Switch the project back to main (`git switch main`) so the owner's working tree is where they left it.

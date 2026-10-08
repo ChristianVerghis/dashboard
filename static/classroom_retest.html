@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Classroom · track record</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <script>try { if (localStorage.getItem('dashboard-theme') === 'light') document.documentElement.classList.add('light'); } catch (e) {}</script>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/viz.css?v=20261005b" />
+  <link rel="stylesheet" href="/static/tokens.css?v=20261005b" />
+  <script src="/static/privacy.js?v=20261005a"></script>
+  <script src="/static/shell.js?v=20261005b"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/classroom/live" class="back-link">←</a>
+      <span class="brand-text">classroom · track record</span>
+      <span class="muted">·</span>
+      <span class="muted small" id="rt-meta">loading…</span>
+    </div>
+    <div class="meta">
+      <a href="/classroom/live" class="topnav-link small">live session</a>
+      <a href="/classroom" class="topnav-link small">long-term</a>
+      <a href="/markets" class="topnav-link small">markets</a>
+    </div>
+  </header>
+
+  <main class="mm-main" id="rt-root">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Does any edge persist?</h2>
+        <span class="muted small">each week is one observation · net = after a one-tick round trip</span>
+      </div>
+      <div id="rt-headline"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Technique × universe</h2>
+        <span class="muted small">mean net bps per distinct bet across weeks · click a cell for its weeks</span>
+      </div>
+      <div style="overflow-x:auto"><table class="heat-table" id="rt-matrix"></table></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Week by week</h2>
+        <div id="rt-tabs" class="tabs" role="tablist"></div>
+      </div>
+      <div style="overflow-x:auto"><table class="sb-table" id="rt-weeks"></table></div>
+      <p class="mm-note" id="rt-weeks-note"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>How this is judged</h2></div>
+      <div class="mm-note" id="rt-method"></div>
+    </section>
+  </main>
+
+  <script src="/static/viz.js?v=20261005"></script>
+  <script src="/static/classroom_retest.js?v=20261005c"></script>
+</body>
+</html>

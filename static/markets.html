@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market map</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <script>try { if (localStorage.getItem('dashboard-theme') === 'light') document.documentElement.classList.add('light'); } catch (e) {}</script>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/viz.css?v=20261005" />
+  <link rel="stylesheet" href="/static/tokens.css?v=20261005b" />
+  <script src="/static/privacy.js?v=20261005a"></script>
+  <script src="/static/shell.js?v=20261005b"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="back-link">←</a>
+      <span class="brand-text">markets · whole market</span>
+      <span class="muted">·</span>
+      <span class="muted small" id="mm-asof">loading…</span>
+    </div>
+    <div class="meta">
+      <a href="/project/markets" class="topnav-link small">project</a>
+      <a href="/predictions" class="topnav-link small">predictions</a>
+      <a href="/classroom" class="topnav-link small">classroom</a>
+      <a href="/classroom/live" class="topnav-link small">live session</a>
+    </div>
+  </header>
+
+  <main class="mm-main" id="mm-root">
+    <section class="panel" id="regime-panel">
+      <div class="panel-head">
+        <h2>Regime</h2>
+        <span class="muted small">nine cross-asset signals scored against stated rules — a summary, not a call</span>
+      </div>
+      <div id="regime"></div>
+    </section>
+
+    <div class="mm-two wide-left">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>EV watchlist vs the market</h2>
+          <span class="muted small">1 year, indexed to 100</span>
+        </div>
+        <div id="ev-chart"></div>
+        <p class="mm-note" id="ev-note"></p>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Rates &amp; volatility</h2>
+          <span class="muted small">levels, 1 year</span>
+        </div>
+        <div id="rates-chart"></div>
+        <div id="vix-chart" style="margin-top:10px"></div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Across assets</h2>
+        <span class="muted small">color = direction and size within each column (blue up, red down) · yields in bp, volatility in points</span>
+      </div>
+      <div style="overflow-x:auto"><table class="heat-table" id="heat"></table></div>
+    </section>
+
+    <div class="mm-two">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Sector rotation</h2>
+          <span class="muted small">relative to the S&amp;P 500, percentage points</span>
+        </div>
+        <div id="rotation"></div>
+        <p class="mm-note" id="rotation-note"></p>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Largest moves today</h2>
+          <span class="muted small">each move in units of its own recent daily moves (σ)</span>
+        </div>
+        <ul class="mm-list" id="sigma"></ul>
+        <p class="mm-note" id="leaders"></p>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Watchlist vs the market</h2>
+        <span class="muted small">each name vs whichever benchmark tracks it better (120 sessions) · expected = beta × that benchmark's move today</span>
+      </div>
+      <div style="overflow-x:auto"><table class="sb-table" id="wl"></table></div>
+    </section>
+
+    <div class="mm-two">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Cross-asset correlation</h2>
+          <span class="muted small">60 trading days of daily changes</span>
+        </div>
+        <div id="corr" style="overflow-x:auto"></div>
+        <p class="mm-note" id="stock-bond"></p>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>How this is built</h2>
+        </div>
+        <div class="mm-note" id="method"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/viz.js?v=20261005"></script>
+  <script src="/static/markets.js?v=20261005"></script>
+</body>
+</html>

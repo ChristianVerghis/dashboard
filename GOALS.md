@@ -48,8 +48,8 @@
 - [x] Keyboard shortcuts HUD (press ?)
 - [x] Per-project notes scratchpad (markdown, auto-saves)
 - [x] HTML snapshot export (`/snapshot.html` → self-contained file)
-- [ ] Browser-based terminal (xterm.js + WebSocket PTY)
-- [ ] Live routine status from API (vs static snapshot)
+- Browser-based terminal (xterm.js + WebSocket PTY): dropped 2026-09-15, too risky; Terminal.app launchers instead
+- [x] Live routine status: launchd jobs from their own logs (missed runs, launchd clock drift), cloud routines from what they commit (2026-10-05)
 
 ## Structure (2026-06-11)
 
@@ -57,5 +57,28 @@
 - [x] Services health row (TCP check on manifest ports, start button, detached)
 - [x] `bin/dev new` scaffolder — projects born dashboard-ready
 - [x] Reef integration — per-repo agent runs/learnings panel + dispatch button
-- [ ] Reef cost rollup page (/usage across all repos)
-- [ ] Lifecycle states in UI (parked projects collapse to a row)
+- Reef cost rollup page: superseded by the usage gauge in Mission control (2026-10-05)
+- [x] Lifecycle states in UI (parked projects collapse to a row): home groups projects into active, quiet and parked
+
+## Mission control (2026-10)
+
+From the 2026-10-04 revamp: the home page answers what is broken, what needs me and what is next, and agents are first-class. Items marked (owner) are being built interactively; the steward skips them.
+
+- [x] Scanner cannot wedge the server: one ignore policy, git-native file stats, background rescans, stall watchdog
+- [x] Session history counts tokens once per message and tags headless runs by entrypoint
+- [x] Shared shell on every page: navigation, ⌘K with actions and Ask, g-chords, help, theme, private mode
+- [x] Mission control page (/control): readout sentence, Needs-you queue with done / snooze / mute, Next up, projects grouped active / quiet / parked
+- [x] Insights is the landing page (2026-10-05); the mission control link carries the needs-you count
+- [x] Live agents from Claude Code's own session and job files; attach background sessions in Terminal
+- [x] Scheduled launchd jobs with next run and last exit code
+- [ ] Review page: merge locally, discard or revise agent branches from the cockpit (owner)
+- [ ] Steward work lands in the review queue, not only in the digest (owner)
+- [ ] Dispatch: start a background agent in a worktree from a goal or ⌘K, with a budget and a RAM-aware cap (owner)
+- [ ] Hooks feed: session events posted to the dashboard for instant state and notifications (owner; needs an OK to edit ~/.claude/settings.json)
+- [ ] Usage gauge from the status line's rate_limits snapshot (owner)
+- [ ] The dashboard as an MCP server for every Claude session (owner)
+- [ ] Project page redesign on the new tokens (owner)
+- [x] Freshness registry (/api/freshness): every data source with its age, expected cadence and fix; feeds Insights, Routines and the Needs-you queue (2026-10-05)
+- [x] The dashboard fetches every repo itself every 6 h; static files are always revalidated (2026-10-05)
+- [x] System panel on Insights: CPU, memory, disk and the apps using the most, live (2026-10-05)
+- [x] Energy and Network tabs: live power from the SMC, battery, what keeps the Mac awake, network rates and totals, per-app traffic (2026-10-05)
